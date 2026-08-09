@@ -20,10 +20,19 @@ Keine späteren Funktionen vorziehen.
 Alle Meilensteine + Quality Gate.
 
 ## Fortschritt
-Noch nicht begonnen.
+- [x] Aktuellen Workspace geprüft: Sites-Connector vorhanden, aber keine
+  zugängliche Site und kein `.openai/hosting.json`.
+- [x] Capability-Gate in ADR 0013 dokumentiert.
+- [ ] Storage-provisionierte private Runtime prüfen (Bindings, APIs,
+  Preview/Publish, Limits, Backup).
+- [ ] SitesStorageAdapter implementieren.
+- [ ] Persistence Smoke Test.
+- [ ] Concurrency Test.
 
 ## Entscheidungen
-Keine.
+ADR 0013: D1/R2 sind dokumentierte Sites-Produktfähigkeiten, für dieses Projekt
+aber noch nicht provisioniert. Ohne nachgewiesene Runtime-APIs bleibt die
+Adapter-Implementierung blockiert.
 
 ## Abschluss
 Offen.
