@@ -110,6 +110,8 @@ describe("InMemoryStorageAdapter", () => {
       name: "Base",
       startDate: "2026-08-01",
       endDate: "2026-08-31",
+      goal: "Grundlage aufbauen",
+      notes: "Progressiv steigern",
       version: 0,
     };
 

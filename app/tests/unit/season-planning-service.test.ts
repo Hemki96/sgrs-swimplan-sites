@@ -168,4 +168,268 @@ describe("SeasonPlanningService", () => {
       }),
     ).rejects.toThrow("Das Startdatum muss vor oder am Enddatum liegen.");
   });
+
+  it("creates, updates and soft deletes macrocycles with revisions", async () => {
+    const track = await service.createTrack(season.id, {
+      name: "WK",
+      sortOrder: 0,
+      visible: true,
+    });
+    const targetEvent = await service.createEvent(season.id, {
+      trackId: track.id,
+      name: "Meisterschaft",
+      startDate: "2027-07-10",
+      endDate: "2027-07-11",
+      priority: "A",
+      category: "",
+      location: "",
+      goal: "",
+      notes: "",
+    });
+    const created = await service.createMacrocycle(season.id, {
+      name: "Aufbau",
+      startDate: "2026-08-01",
+      endDate: "2027-01-31",
+      goal: "Grundlage entwickeln",
+      targetEventId: targetEvent.id,
+      notes: "Progressiv steigern",
+    });
+    const updated = await service.updateMacrocycle(created, {
+      name: "Grundlagenaufbau",
+      startDate: "2026-08-15",
+      endDate: "2027-02-28",
+      goal: "Grundlage stabilisieren",
+      notes: "Entlastungswochen berücksichtigen",
+    });
+
+    expect(updated).toMatchObject({
+      version: 2,
+      name: "Grundlagenaufbau",
+      targetEventId: undefined,
+    });
+    await service.deleteMacrocycle(updated);
+    await expect(service.listMacrocycles(season.id)).resolves.toEqual([]);
+    await expect(storage.listRevisions(season.id)).resolves.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          operation: "create",
+          entityType: "macrocycles",
+        }),
+        expect.objectContaining({
+          operation: "update",
+          entityType: "macrocycles",
+        }),
+        expect.objectContaining({
+          operation: "soft_delete",
+          entityType: "macrocycles",
+        }),
+      ]),
+    );
+  });
+
+  it("rejects macrocycles outside the season and foreign target events", async () => {
+    const input = {
+      name: "Aufbau",
+      startDate: "2026-07-31",
+      endDate: "2026-10-31",
+      goal: "Grundlage entwickeln",
+      notes: "Progressiv steigern",
+    };
+    await expect(service.createMacrocycle(season.id, input)).rejects.toThrow(
+      "Der Zeitraum muss vollständig innerhalb der Saison liegen.",
+    );
+    await expect(
+      service.createMacrocycle(season.id, {
+        ...input,
+        startDate: "2026-08-01",
+        targetEventId: "foreign-event",
+      }),
+    ).rejects.toThrow("Der Zielwettkampf gehört nicht zu dieser Saison.");
+  });
+
+  it("creates, updates and soft deletes mesocycles with revisions", async () => {
+    const macrocycle = await service.createMacrocycle(season.id, {
+      name: "Aufbau",
+      startDate: "2026-08-01",
+      endDate: "2027-01-31",
+      goal: "Grundlage entwickeln",
+      notes: "Progressiv steigern",
+    });
+    const created = await service.createMesocycle({
+      macrocycleId: macrocycle.id,
+      name: "Aerobe Basis",
+      startDate: "2026-08-01",
+      endDate: "2026-09-30",
+      goal: "Ausdauer aufbauen",
+      notes: "Technik stabil halten",
+    });
+    const updated = await service.updateMesocycle(created, {
+      macrocycleId: macrocycle.id,
+      name: "Aerobe Grundlage",
+      startDate: "2026-08-15",
+      endDate: "2026-10-15",
+      goal: "Ausdauer stabilisieren",
+      notes: "Entlastung einplanen",
+    });
+
+    expect(updated).toMatchObject({ version: 2, name: "Aerobe Grundlage" });
+    await expect(service.deleteMacrocycle(macrocycle)).rejects.toThrow(
+      "Ein Makrozyklus mit Mesozyklen kann nicht gelöscht werden.",
+    );
+    await service.deleteMesocycle(updated);
+    await service.deleteMacrocycle(macrocycle);
+    await expect(service.listMesocycles(season.id)).resolves.toEqual([]);
+    await expect(storage.listRevisions(season.id)).resolves.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          operation: "create",
+          entityType: "mesocycles",
+        }),
+        expect.objectContaining({
+          operation: "update",
+          entityType: "mesocycles",
+        }),
+        expect.objectContaining({
+          operation: "soft_delete",
+          entityType: "mesocycles",
+        }),
+      ]),
+    );
+  });
+
+  it("rejects a mesocycle outside its macrocycle", async () => {
+    const macrocycle = await service.createMacrocycle(season.id, {
+      name: "Aufbau",
+      startDate: "2026-09-01",
+      endDate: "2026-12-31",
+      goal: "Grundlage entwickeln",
+      notes: "Progressiv steigern",
+    });
+    const input = {
+      macrocycleId: macrocycle.id,
+      name: "Aerobe Basis",
+      startDate: "2026-08-31",
+      endDate: "2026-10-31",
+      goal: "Ausdauer aufbauen",
+      notes: "Technik stabil halten",
+    };
+
+    await expect(service.createMesocycle(input)).rejects.toThrow(
+      "Der Zeitraum muss vollständig innerhalb des Makrozyklus liegen.",
+    );
+    await expect(
+      service.createMesocycle({ ...input, macrocycleId: "missing-macrocycle" }),
+    ).rejects.toThrow("Makrozyklus wurde nicht gefunden.");
+  });
+
+  it("creates, updates and soft deletes microcycles with revisions", async () => {
+    const macrocycle = await service.createMacrocycle(season.id, {
+      name: "Aufbau",
+      startDate: "2026-08-01",
+      endDate: "2027-01-31",
+      goal: "Grundlage entwickeln",
+      notes: "Progressiv steigern",
+    });
+    const mesocycle = await service.createMesocycle({
+      macrocycleId: macrocycle.id,
+      name: "Aerobe Basis",
+      startDate: "2026-08-01",
+      endDate: "2026-09-30",
+      goal: "Ausdauer aufbauen",
+      notes: "Technik stabil halten",
+    });
+    const created = await service.createMicrocycle({
+      mesocycleId: mesocycle.id,
+      name: "KW 32",
+      startDate: "2026-08-03",
+      endDate: "2026-08-09",
+      goal: "Ruhiger Einstieg",
+      targetRpe: 4,
+      targetVolumeMeters: 18_000,
+    });
+    const updated = await service.updateMicrocycle(created, {
+      mesocycleId: mesocycle.id,
+      name: "KW 33",
+      startDate: "2026-08-10",
+      endDate: "2026-08-16",
+      goal: "Belastung steigern",
+      targetRpe: 6,
+    });
+
+    expect(updated).toMatchObject({
+      version: 2,
+      name: "KW 33",
+      targetRpe: 6,
+      targetVolumeMeters: undefined,
+    });
+    await expect(service.deleteMesocycle(mesocycle)).rejects.toThrow(
+      "Ein Mesozyklus mit Mikrozyklen kann nicht gelöscht werden.",
+    );
+    await service.deleteMicrocycle(updated);
+    await service.deleteMesocycle(mesocycle);
+    await expect(service.listMicrocycles(season.id)).resolves.toEqual([]);
+    await expect(storage.listRevisions(season.id)).resolves.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          operation: "create",
+          entityType: "microcycles",
+        }),
+        expect.objectContaining({
+          operation: "update",
+          entityType: "microcycles",
+        }),
+        expect.objectContaining({
+          operation: "soft_delete",
+          entityType: "microcycles",
+        }),
+      ]),
+    );
+  });
+
+  it("validates microcycle range, target RPE and target volume", async () => {
+    const macrocycle = await service.createMacrocycle(season.id, {
+      name: "Aufbau",
+      startDate: "2026-08-01",
+      endDate: "2026-12-31",
+      goal: "Grundlage entwickeln",
+      notes: "Progressiv steigern",
+    });
+    const mesocycle = await service.createMesocycle({
+      macrocycleId: macrocycle.id,
+      name: "Aerobe Basis",
+      startDate: "2026-09-01",
+      endDate: "2026-10-31",
+      goal: "Ausdauer aufbauen",
+      notes: "Technik stabil halten",
+    });
+    const input = {
+      mesocycleId: mesocycle.id,
+      name: "KW 36",
+      startDate: "2026-08-31",
+      endDate: "2026-09-06",
+      goal: "Einstieg",
+      targetRpe: 5,
+    };
+
+    await expect(service.createMicrocycle(input)).rejects.toThrow(
+      "Der Zeitraum muss vollständig innerhalb des Mesozyklus liegen.",
+    );
+    await expect(
+      service.createMicrocycle({
+        ...input,
+        startDate: "2026-09-01",
+        targetRpe: 11,
+      }),
+    ).rejects.toThrow("Target RPE muss zwischen 1 und 10 liegen.");
+    await expect(
+      service.createMicrocycle({
+        ...input,
+        startDate: "2026-09-01",
+        targetVolumeMeters: -1,
+      }),
+    ).rejects.toThrow("Zielumfang muss mindestens 0 Meter sein.");
+    await expect(
+      service.createMicrocycle({ ...input, mesocycleId: "missing-mesocycle" }),
+    ).rejects.toThrow("Mesozyklus wurde nicht gefunden.");
+  });
 });

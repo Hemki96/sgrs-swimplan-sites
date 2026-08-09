@@ -15,6 +15,9 @@ import type {
   CalendarConstraint,
   Event,
   EventTrack,
+  Macrocycle,
+  Mesocycle,
+  Microcycle,
   Season,
 } from "../../lib/domain/types";
 import type { StorageAdapter } from "../../lib/storage/StorageAdapter";
@@ -22,9 +25,15 @@ import {
   calendarConstraintInputSchema,
   eventInputSchema,
   eventTrackInputSchema,
+  macrocycleInputSchema,
+  mesocycleInputSchema,
+  microcycleInputSchema,
   type CalendarConstraintInput,
   type EventInput,
   type EventTrackInput,
+  type MacrocycleInput,
+  type MesocycleInput,
+  type MicrocycleInput,
 } from "../../lib/validation/domain";
 
 const blankTrack: EventTrackInput = { name: "", sortOrder: 0, visible: true };
@@ -47,6 +56,31 @@ const blankConstraint: CalendarConstraintInput = {
   notes: "",
   severity: "Hinweis",
 };
+const blankMacrocycle: MacrocycleInput = {
+  name: "",
+  startDate: "",
+  endDate: "",
+  goal: "",
+  targetEventId: undefined,
+  notes: "",
+};
+const blankMesocycle: MesocycleInput = {
+  macrocycleId: "",
+  name: "",
+  startDate: "",
+  endDate: "",
+  goal: "",
+  notes: "",
+};
+const blankMicrocycle: MicrocycleInput = {
+  mesocycleId: "",
+  name: "",
+  startDate: "",
+  endDate: "",
+  goal: "",
+  targetRpe: 5,
+  targetVolumeMeters: undefined,
+};
 
 export function SeasonPlanning({
   season,
@@ -59,17 +93,33 @@ export function SeasonPlanning({
   const [tracks, setTracks] = useState<EventTrack[]>([]);
   const [events, setEvents] = useState<Event[]>([]);
   const [constraints, setConstraints] = useState<CalendarConstraint[]>([]);
+  const [macrocycles, setMacrocycles] = useState<Macrocycle[]>([]);
+  const [mesocycles, setMesocycles] = useState<Mesocycle[]>([]);
+  const [microcycles, setMicrocycles] = useState<Microcycle[]>([]);
   const [notice, setNotice] = useState("");
 
   async function reload() {
-    const [nextTracks, nextEvents, nextConstraints] = await Promise.all([
+    const [
+      nextTracks,
+      nextEvents,
+      nextConstraints,
+      nextMacrocycles,
+      nextMesocycles,
+      nextMicrocycles,
+    ] = await Promise.all([
       service.listTracks(season.id),
       service.listEvents(season.id),
       service.listConstraints(season.id),
+      service.listMacrocycles(season.id),
+      service.listMesocycles(season.id),
+      service.listMicrocycles(season.id),
     ]);
     setTracks(nextTracks);
     setEvents(nextEvents);
     setConstraints(nextConstraints);
+    setMacrocycles(nextMacrocycles);
+    setMesocycles(nextMesocycles);
+    setMicrocycles(nextMicrocycles);
   }
 
   useEffect(() => {
@@ -78,12 +128,27 @@ export function SeasonPlanning({
       service.listTracks(season.id),
       service.listEvents(season.id),
       service.listConstraints(season.id),
-    ]).then(([nextTracks, nextEvents, nextConstraints]) => {
-      if (!active) return;
-      setTracks(nextTracks);
-      setEvents(nextEvents);
-      setConstraints(nextConstraints);
-    });
+      service.listMacrocycles(season.id),
+      service.listMesocycles(season.id),
+      service.listMicrocycles(season.id),
+    ]).then(
+      ([
+        nextTracks,
+        nextEvents,
+        nextConstraints,
+        nextMacrocycles,
+        nextMesocycles,
+        nextMicrocycles,
+      ]) => {
+        if (!active) return;
+        setTracks(nextTracks);
+        setEvents(nextEvents);
+        setConstraints(nextConstraints);
+        setMacrocycles(nextMacrocycles);
+        setMesocycles(nextMesocycles);
+        setMicrocycles(nextMicrocycles);
+      },
+    );
     return () => {
       active = false;
     };
@@ -127,7 +192,524 @@ export function SeasonPlanning({
         onChange={reload}
         onNotice={setNotice}
       />
+      <MacrocycleSection
+        macrocycles={macrocycles}
+        events={events}
+        service={service}
+        seasonId={season.id}
+        onChange={reload}
+        onNotice={setNotice}
+      />
+      <MesocycleSection
+        mesocycles={mesocycles}
+        macrocycles={macrocycles}
+        service={service}
+        seasonId={season.id}
+        onChange={reload}
+        onNotice={setNotice}
+      />
+      <MicrocycleSection
+        microcycles={microcycles}
+        mesocycles={mesocycles}
+        service={service}
+        seasonId={season.id}
+        onChange={reload}
+        onNotice={setNotice}
+      />
     </section>
+  );
+}
+
+function MicrocycleSection({
+  microcycles,
+  mesocycles,
+  service,
+  onChange,
+  onNotice,
+}: SectionProps & { microcycles: Microcycle[]; mesocycles: Mesocycle[] }) {
+  const [form, setForm] = useState<MicrocycleInput>(blankMicrocycle);
+  const [editing, setEditing] = useState<Microcycle | null>(null);
+  const [errors, setErrors] = useState<Record<string, string>>({});
+
+  async function submit(event: FormEvent) {
+    event.preventDefault();
+    const parsed = microcycleInputSchema.safeParse(form);
+    if (!parsed.success) return setErrors(fieldErrors(parsed.error));
+    try {
+      if (editing) await service.updateMicrocycle(editing, parsed.data);
+      else await service.createMicrocycle(parsed.data);
+      onNotice(
+        editing
+          ? "Mikrozyklus wurde aktualisiert."
+          : "Mikrozyklus wurde angelegt.",
+      );
+      setEditing(null);
+      setForm(blankMicrocycle);
+      setErrors({});
+      await onChange();
+    } catch (error) {
+      setErrors({ form: errorMessage(error) });
+    }
+  }
+
+  function edit(microcycle: Microcycle) {
+    setEditing(microcycle);
+    setForm({
+      mesocycleId: microcycle.mesocycleId,
+      name: microcycle.name,
+      startDate: microcycle.startDate,
+      endDate: microcycle.endDate,
+      goal: microcycle.goal,
+      targetRpe: microcycle.targetRpe,
+      targetVolumeMeters: microcycle.targetVolumeMeters,
+    });
+    setErrors({});
+  }
+
+  async function remove(microcycle: Microcycle) {
+    try {
+      await service.deleteMicrocycle(microcycle);
+      onNotice("Mikrozyklus wurde gelöscht.");
+      await onChange();
+    } catch (error) {
+      onNotice(errorMessage(error));
+    }
+  }
+
+  return (
+    <PlanningSection title="Mikrozyklen" count={microcycles.length}>
+      {mesocycles.length === 0 ? (
+        <p className="hint">Lege zuerst einen Mesozyklus an.</p>
+      ) : (
+        <form className="entity-form" onSubmit={submit} noValidate>
+          <Field label="Mesozyklus" error={errors.mesocycleId}>
+            <select
+              value={form.mesocycleId}
+              onChange={(e) =>
+                setForm({ ...form, mesocycleId: e.target.value })
+              }
+            >
+              <option value="">Bitte wählen</option>
+              {mesocycles.map((mesocycle) => (
+                <option key={mesocycle.id} value={mesocycle.id}>
+                  {mesocycle.name}
+                </option>
+              ))}
+            </select>
+          </Field>
+          <Field label="Name/KW" error={errors.name}>
+            <input
+              value={form.name}
+              onChange={(e) => setForm({ ...form, name: e.target.value })}
+            />
+          </Field>
+          <Field label="Startdatum" error={errors.startDate}>
+            <input
+              type="date"
+              value={form.startDate}
+              onChange={(e) => setForm({ ...form, startDate: e.target.value })}
+            />
+          </Field>
+          <Field label="Enddatum" error={errors.endDate}>
+            <input
+              type="date"
+              value={form.endDate}
+              onChange={(e) => setForm({ ...form, endDate: e.target.value })}
+            />
+          </Field>
+          <Field label="Target RPE" error={errors.targetRpe}>
+            <input
+              type="number"
+              min="1"
+              max="10"
+              step="1"
+              value={form.targetRpe}
+              onChange={(e) =>
+                setForm({ ...form, targetRpe: Number(e.target.value) })
+              }
+            />
+          </Field>
+          <Field label="Zielumfang in Metern" error={errors.targetVolumeMeters}>
+            <input
+              type="number"
+              min="0"
+              value={form.targetVolumeMeters ?? ""}
+              onChange={(e) =>
+                setForm({
+                  ...form,
+                  targetVolumeMeters:
+                    e.target.value === "" ? undefined : Number(e.target.value),
+                })
+              }
+            />
+          </Field>
+          <Field label="Ziel" error={errors.goal} className="wide">
+            <textarea
+              rows={2}
+              value={form.goal}
+              onChange={(e) => setForm({ ...form, goal: e.target.value })}
+            />
+          </Field>
+          {errors.form && (
+            <p className="field-error form-error">{errors.form}</p>
+          )}
+          <div className="entity-actions">
+            <button className="button primary" type="submit">
+              {editing ? "Mikrozyklus speichern" : "Mikrozyklus anlegen"}
+            </button>
+            {editing && (
+              <button
+                className="button quiet"
+                type="button"
+                onClick={() => {
+                  setEditing(null);
+                  setForm(blankMicrocycle);
+                }}
+              >
+                Abbrechen
+              </button>
+            )}
+          </div>
+        </form>
+      )}
+      <div className="item-list">
+        {microcycles.map((microcycle) => (
+          <article className="planning-item" key={microcycle.id}>
+            <div>
+              <strong>{microcycle.name}</strong>
+              <span>
+                {mesocycleName(mesocycles, microcycle.mesocycleId)} ·{" "}
+                {formatDate(microcycle.startDate)} –{" "}
+                {formatDate(microcycle.endDate)}
+              </span>
+              <span>
+                Target RPE {microcycle.targetRpe}
+                {microcycle.targetVolumeMeters === undefined
+                  ? ""
+                  : ` · ${microcycle.targetVolumeMeters} m`}
+              </span>
+              <span>Ziel: {microcycle.goal}</span>
+            </div>
+            <ItemActions
+              onEdit={() => edit(microcycle)}
+              onDelete={() => void remove(microcycle)}
+            />
+          </article>
+        ))}
+      </div>
+    </PlanningSection>
+  );
+}
+
+function MesocycleSection({
+  mesocycles,
+  macrocycles,
+  service,
+  onChange,
+  onNotice,
+}: SectionProps & { mesocycles: Mesocycle[]; macrocycles: Macrocycle[] }) {
+  const [form, setForm] = useState<MesocycleInput>(blankMesocycle);
+  const [editing, setEditing] = useState<Mesocycle | null>(null);
+  const [errors, setErrors] = useState<Record<string, string>>({});
+
+  async function submit(event: FormEvent) {
+    event.preventDefault();
+    const parsed = mesocycleInputSchema.safeParse(form);
+    if (!parsed.success) return setErrors(fieldErrors(parsed.error));
+    try {
+      if (editing) await service.updateMesocycle(editing, parsed.data);
+      else await service.createMesocycle(parsed.data);
+      onNotice(
+        editing
+          ? "Mesozyklus wurde aktualisiert."
+          : "Mesozyklus wurde angelegt.",
+      );
+      setEditing(null);
+      setForm(blankMesocycle);
+      setErrors({});
+      await onChange();
+    } catch (error) {
+      setErrors({ form: errorMessage(error) });
+    }
+  }
+
+  function edit(mesocycle: Mesocycle) {
+    setEditing(mesocycle);
+    setForm({
+      macrocycleId: mesocycle.macrocycleId,
+      name: mesocycle.name,
+      startDate: mesocycle.startDate,
+      endDate: mesocycle.endDate,
+      goal: mesocycle.goal,
+      notes: mesocycle.notes,
+    });
+    setErrors({});
+  }
+
+  async function remove(mesocycle: Mesocycle) {
+    try {
+      await service.deleteMesocycle(mesocycle);
+      onNotice("Mesozyklus wurde gelöscht.");
+      await onChange();
+    } catch (error) {
+      onNotice(errorMessage(error));
+    }
+  }
+
+  return (
+    <PlanningSection title="Mesozyklen" count={mesocycles.length}>
+      {macrocycles.length === 0 ? (
+        <p className="hint">Lege zuerst einen Makrozyklus an.</p>
+      ) : (
+        <form className="entity-form" onSubmit={submit} noValidate>
+          <Field label="Makrozyklus" error={errors.macrocycleId}>
+            <select
+              value={form.macrocycleId}
+              onChange={(e) =>
+                setForm({ ...form, macrocycleId: e.target.value })
+              }
+            >
+              <option value="">Bitte wählen</option>
+              {macrocycles.map((macrocycle) => (
+                <option key={macrocycle.id} value={macrocycle.id}>
+                  {macrocycle.name}
+                </option>
+              ))}
+            </select>
+          </Field>
+          <Field label="Name" error={errors.name}>
+            <input
+              value={form.name}
+              onChange={(e) => setForm({ ...form, name: e.target.value })}
+            />
+          </Field>
+          <Field label="Startdatum" error={errors.startDate}>
+            <input
+              type="date"
+              value={form.startDate}
+              onChange={(e) => setForm({ ...form, startDate: e.target.value })}
+            />
+          </Field>
+          <Field label="Enddatum" error={errors.endDate}>
+            <input
+              type="date"
+              value={form.endDate}
+              onChange={(e) => setForm({ ...form, endDate: e.target.value })}
+            />
+          </Field>
+          <Field label="Ziel" error={errors.goal} className="wide">
+            <textarea
+              rows={2}
+              value={form.goal}
+              onChange={(e) => setForm({ ...form, goal: e.target.value })}
+            />
+          </Field>
+          <Field label="Notiz" error={errors.notes} className="wide">
+            <textarea
+              rows={2}
+              value={form.notes}
+              onChange={(e) => setForm({ ...form, notes: e.target.value })}
+            />
+          </Field>
+          {errors.form && (
+            <p className="field-error form-error">{errors.form}</p>
+          )}
+          <div className="entity-actions">
+            <button className="button primary" type="submit">
+              {editing ? "Mesozyklus speichern" : "Mesozyklus anlegen"}
+            </button>
+            {editing && (
+              <button
+                className="button quiet"
+                type="button"
+                onClick={() => {
+                  setEditing(null);
+                  setForm(blankMesocycle);
+                }}
+              >
+                Abbrechen
+              </button>
+            )}
+          </div>
+        </form>
+      )}
+      <div className="item-list">
+        {mesocycles.map((mesocycle) => (
+          <article className="planning-item" key={mesocycle.id}>
+            <div>
+              <strong>{mesocycle.name}</strong>
+              <span>
+                {macrocycleName(macrocycles, mesocycle.macrocycleId)} ·{" "}
+                {formatDate(mesocycle.startDate)} –{" "}
+                {formatDate(mesocycle.endDate)}
+              </span>
+              <span>Ziel: {mesocycle.goal}</span>
+              <span>Notiz: {mesocycle.notes}</span>
+            </div>
+            <ItemActions
+              onEdit={() => edit(mesocycle)}
+              onDelete={() => void remove(mesocycle)}
+            />
+          </article>
+        ))}
+      </div>
+    </PlanningSection>
+  );
+}
+
+function MacrocycleSection({
+  macrocycles,
+  events,
+  service,
+  seasonId,
+  onChange,
+  onNotice,
+}: SectionProps & { macrocycles: Macrocycle[]; events: Event[] }) {
+  const [form, setForm] = useState<MacrocycleInput>(blankMacrocycle);
+  const [editing, setEditing] = useState<Macrocycle | null>(null);
+  const [errors, setErrors] = useState<Record<string, string>>({});
+
+  async function submit(event: FormEvent) {
+    event.preventDefault();
+    const parsed = macrocycleInputSchema.safeParse(form);
+    if (!parsed.success) return setErrors(fieldErrors(parsed.error));
+    try {
+      if (editing) await service.updateMacrocycle(editing, parsed.data);
+      else await service.createMacrocycle(seasonId, parsed.data);
+      onNotice(
+        editing
+          ? "Makrozyklus wurde aktualisiert."
+          : "Makrozyklus wurde angelegt.",
+      );
+      setEditing(null);
+      setForm(blankMacrocycle);
+      setErrors({});
+      await onChange();
+    } catch (error) {
+      setErrors({ form: errorMessage(error) });
+    }
+  }
+
+  function edit(macrocycle: Macrocycle) {
+    setEditing(macrocycle);
+    setForm({
+      name: macrocycle.name,
+      startDate: macrocycle.startDate,
+      endDate: macrocycle.endDate,
+      goal: macrocycle.goal,
+      targetEventId: macrocycle.targetEventId,
+      notes: macrocycle.notes,
+    });
+    setErrors({});
+  }
+
+  async function remove(macrocycle: Macrocycle) {
+    try {
+      await service.deleteMacrocycle(macrocycle);
+      onNotice("Makrozyklus wurde gelöscht.");
+      await onChange();
+    } catch (error) {
+      onNotice(errorMessage(error));
+    }
+  }
+
+  return (
+    <PlanningSection title="Makrozyklen" count={macrocycles.length}>
+      <form className="entity-form" onSubmit={submit} noValidate>
+        <Field label="Name" error={errors.name}>
+          <input
+            value={form.name}
+            onChange={(e) => setForm({ ...form, name: e.target.value })}
+          />
+        </Field>
+        <Field label="Zielwettkampf" error={errors.targetEventId}>
+          <select
+            value={form.targetEventId ?? ""}
+            onChange={(e) =>
+              setForm({
+                ...form,
+                targetEventId: e.target.value || undefined,
+              })
+            }
+          >
+            <option value="">Kein Zielwettkampf</option>
+            {events.map((event) => (
+              <option key={event.id} value={event.id}>
+                {event.name}
+              </option>
+            ))}
+          </select>
+        </Field>
+        <Field label="Startdatum" error={errors.startDate}>
+          <input
+            type="date"
+            value={form.startDate}
+            onChange={(e) => setForm({ ...form, startDate: e.target.value })}
+          />
+        </Field>
+        <Field label="Enddatum" error={errors.endDate}>
+          <input
+            type="date"
+            value={form.endDate}
+            onChange={(e) => setForm({ ...form, endDate: e.target.value })}
+          />
+        </Field>
+        <Field label="Ziel" error={errors.goal} className="wide">
+          <textarea
+            rows={2}
+            value={form.goal}
+            onChange={(e) => setForm({ ...form, goal: e.target.value })}
+          />
+        </Field>
+        <Field label="Notiz" error={errors.notes} className="wide">
+          <textarea
+            rows={2}
+            value={form.notes}
+            onChange={(e) => setForm({ ...form, notes: e.target.value })}
+          />
+        </Field>
+        {errors.form && <p className="field-error form-error">{errors.form}</p>}
+        <div className="entity-actions">
+          <button className="button primary" type="submit">
+            {editing ? "Makrozyklus speichern" : "Makrozyklus anlegen"}
+          </button>
+          {editing && (
+            <button
+              className="button quiet"
+              type="button"
+              onClick={() => {
+                setEditing(null);
+                setForm(blankMacrocycle);
+              }}
+            >
+              Abbrechen
+            </button>
+          )}
+        </div>
+      </form>
+      <div className="item-list">
+        {macrocycles.map((macrocycle) => (
+          <article className="planning-item" key={macrocycle.id}>
+            <div>
+              <strong>{macrocycle.name}</strong>
+              <span>
+                {formatDate(macrocycle.startDate)} –{" "}
+                {formatDate(macrocycle.endDate)}
+                {macrocycle.targetEventId
+                  ? ` · Zielwettkampf: ${eventName(events, macrocycle.targetEventId)}`
+                  : ""}
+              </span>
+              <span>Ziel: {macrocycle.goal}</span>
+              <span>Notiz: {macrocycle.notes}</span>
+            </div>
+            <ItemActions
+              onEdit={() => edit(macrocycle)}
+              onDelete={() => void remove(macrocycle)}
+            />
+          </article>
+        ))}
+      </div>
+    </PlanningSection>
   );
 }
 
@@ -640,6 +1222,26 @@ function errorMessage(error: unknown): string {
 function trackName(tracks: EventTrack[], id: string): string {
   return (
     tracks.find((track) => track.id === id)?.name ?? "Unbekannte Eventspur"
+  );
+}
+
+function eventName(events: Event[], id: string): string {
+  return (
+    events.find((event) => event.id === id)?.name ?? "Unbekannter Wettkampf"
+  );
+}
+
+function macrocycleName(macrocycles: Macrocycle[], id: string): string {
+  return (
+    macrocycles.find((macrocycle) => macrocycle.id === id)?.name ??
+    "Unbekannter Makrozyklus"
+  );
+}
+
+function mesocycleName(mesocycles: Mesocycle[], id: string): string {
+  return (
+    mesocycles.find((mesocycle) => mesocycle.id === id)?.name ??
+    "Unbekannter Mesozyklus"
   );
 }
 

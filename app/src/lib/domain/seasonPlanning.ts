@@ -1,12 +1,26 @@
-import type { CalendarConstraint, Event, EventTrack, Season } from "./types";
+import type {
+  CalendarConstraint,
+  Event,
+  EventTrack,
+  Macrocycle,
+  Mesocycle,
+  Microcycle,
+  Season,
+} from "./types";
 import type { StorageAdapter } from "../storage/StorageAdapter";
 import {
   calendarConstraintInputSchema,
   eventInputSchema,
   eventTrackInputSchema,
+  macrocycleInputSchema,
+  mesocycleInputSchema,
+  microcycleInputSchema,
   type CalendarConstraintInput,
   type EventInput,
   type EventTrackInput,
+  type MacrocycleInput,
+  type MesocycleInput,
+  type MicrocycleInput,
 } from "../validation/domain";
 
 export interface SeasonPlanningDependencies {
@@ -167,6 +181,202 @@ export class SeasonPlanningService {
     });
   }
 
+  async listMacrocycles(seasonId: string): Promise<Macrocycle[]> {
+    return (await this.storage.list<Macrocycle>("macrocycles"))
+      .filter((macrocycle) => macrocycle.seasonId === seasonId)
+      .sort((left, right) => left.startDate.localeCompare(right.startDate));
+  }
+
+  async createMacrocycle(
+    seasonId: string,
+    input: MacrocycleInput,
+  ): Promise<Macrocycle> {
+    const season = await this.requireSeason(seasonId);
+    const values = macrocycleInputSchema.parse(input);
+    this.assertWithinSeason(season, values.startDate, values.endDate);
+    await this.requireTargetEvent(seasonId, values.targetEventId);
+    return this.storage.put(
+      "macrocycles",
+      { id: this.createId(), seasonId, ...values, version: 0 },
+      { expectedVersion: 0, revision: this.revision(seasonId) },
+    );
+  }
+
+  async updateMacrocycle(
+    macrocycle: Macrocycle,
+    input: MacrocycleInput,
+  ): Promise<Macrocycle> {
+    const season = await this.requireSeason(macrocycle.seasonId);
+    const values = macrocycleInputSchema.parse(input);
+    this.assertWithinSeason(season, values.startDate, values.endDate);
+    await this.requireTargetEvent(macrocycle.seasonId, values.targetEventId);
+    return this.storage.put(
+      "macrocycles",
+      {
+        ...macrocycle,
+        ...values,
+        targetEventId: values.targetEventId,
+      },
+      {
+        expectedVersion: macrocycle.version,
+        revision: this.revision(macrocycle.seasonId),
+      },
+    );
+  }
+
+  async deleteMacrocycle(macrocycle: Macrocycle): Promise<void> {
+    const mesocycles = await this.storage.list<Mesocycle>("mesocycles");
+    if (
+      mesocycles.some((mesocycle) => mesocycle.macrocycleId === macrocycle.id)
+    ) {
+      throw new PlanningValidationError(
+        "Ein Makrozyklus mit Mesozyklen kann nicht gelöscht werden.",
+      );
+    }
+    return this.storage.softDelete("macrocycles", macrocycle.id, {
+      expectedVersion: macrocycle.version,
+      revision: this.revision(macrocycle.seasonId),
+    });
+  }
+
+  async listMesocycles(seasonId: string): Promise<Mesocycle[]> {
+    const macrocycleIds = new Set(
+      (await this.listMacrocycles(seasonId)).map((macrocycle) => macrocycle.id),
+    );
+    return (await this.storage.list<Mesocycle>("mesocycles"))
+      .filter((mesocycle) => macrocycleIds.has(mesocycle.macrocycleId))
+      .sort((left, right) => left.startDate.localeCompare(right.startDate));
+  }
+
+  async createMesocycle(input: MesocycleInput): Promise<Mesocycle> {
+    const values = mesocycleInputSchema.parse(input);
+    const macrocycle = await this.requireMacrocycle(values.macrocycleId);
+    this.assertWithinMacrocycle(macrocycle, values.startDate, values.endDate);
+    return this.storage.put(
+      "mesocycles",
+      { id: this.createId(), ...values, version: 0 },
+      {
+        expectedVersion: 0,
+        revision: this.revision(macrocycle.seasonId),
+      },
+    );
+  }
+
+  async updateMesocycle(
+    mesocycle: Mesocycle,
+    input: MesocycleInput,
+  ): Promise<Mesocycle> {
+    const values = mesocycleInputSchema.parse(input);
+    const [currentMacrocycle, targetMacrocycle] = await Promise.all([
+      this.requireMacrocycle(mesocycle.macrocycleId),
+      this.requireMacrocycle(values.macrocycleId),
+    ]);
+    if (currentMacrocycle.seasonId !== targetMacrocycle.seasonId) {
+      throw new PlanningValidationError(
+        "Der Makrozyklus gehört nicht zu derselben Saison.",
+      );
+    }
+    this.assertWithinMacrocycle(
+      targetMacrocycle,
+      values.startDate,
+      values.endDate,
+    );
+    return this.storage.put(
+      "mesocycles",
+      { ...mesocycle, ...values },
+      {
+        expectedVersion: mesocycle.version,
+        revision: this.revision(targetMacrocycle.seasonId),
+      },
+    );
+  }
+
+  async deleteMesocycle(mesocycle: Mesocycle): Promise<void> {
+    const microcycles = await this.storage.list<Microcycle>("microcycles");
+    if (
+      microcycles.some((microcycle) => microcycle.mesocycleId === mesocycle.id)
+    ) {
+      throw new PlanningValidationError(
+        "Ein Mesozyklus mit Mikrozyklen kann nicht gelöscht werden.",
+      );
+    }
+    const macrocycle = await this.requireMacrocycle(mesocycle.macrocycleId);
+    return this.storage.softDelete("mesocycles", mesocycle.id, {
+      expectedVersion: mesocycle.version,
+      revision: this.revision(macrocycle.seasonId),
+    });
+  }
+
+  async listMicrocycles(seasonId: string): Promise<Microcycle[]> {
+    const mesocycleIds = new Set(
+      (await this.listMesocycles(seasonId)).map((mesocycle) => mesocycle.id),
+    );
+    return (await this.storage.list<Microcycle>("microcycles"))
+      .filter((microcycle) => mesocycleIds.has(microcycle.mesocycleId))
+      .sort((left, right) => left.startDate.localeCompare(right.startDate));
+  }
+
+  async createMicrocycle(input: MicrocycleInput): Promise<Microcycle> {
+    const values = microcycleInputSchema.parse(input);
+    const mesocycle = await this.requireMesocycle(values.mesocycleId);
+    this.assertWithinMesocycle(mesocycle, values.startDate, values.endDate);
+    const macrocycle = await this.requireMacrocycle(mesocycle.macrocycleId);
+    return this.storage.put(
+      "microcycles",
+      { id: this.createId(), ...values, version: 0 },
+      {
+        expectedVersion: 0,
+        revision: this.revision(macrocycle.seasonId),
+      },
+    );
+  }
+
+  async updateMicrocycle(
+    microcycle: Microcycle,
+    input: MicrocycleInput,
+  ): Promise<Microcycle> {
+    const values = microcycleInputSchema.parse(input);
+    const [currentMesocycle, targetMesocycle] = await Promise.all([
+      this.requireMesocycle(microcycle.mesocycleId),
+      this.requireMesocycle(values.mesocycleId),
+    ]);
+    const [currentMacrocycle, targetMacrocycle] = await Promise.all([
+      this.requireMacrocycle(currentMesocycle.macrocycleId),
+      this.requireMacrocycle(targetMesocycle.macrocycleId),
+    ]);
+    if (currentMacrocycle.seasonId !== targetMacrocycle.seasonId) {
+      throw new PlanningValidationError(
+        "Der Mesozyklus gehört nicht zu derselben Saison.",
+      );
+    }
+    this.assertWithinMesocycle(
+      targetMesocycle,
+      values.startDate,
+      values.endDate,
+    );
+    return this.storage.put(
+      "microcycles",
+      {
+        ...microcycle,
+        ...values,
+        targetVolumeMeters: values.targetVolumeMeters,
+      },
+      {
+        expectedVersion: microcycle.version,
+        revision: this.revision(targetMacrocycle.seasonId),
+      },
+    );
+  }
+
+  async deleteMicrocycle(microcycle: Microcycle): Promise<void> {
+    const mesocycle = await this.requireMesocycle(microcycle.mesocycleId);
+    const macrocycle = await this.requireMacrocycle(mesocycle.macrocycleId);
+    return this.storage.softDelete("microcycles", microcycle.id, {
+      expectedVersion: microcycle.version,
+      revision: this.revision(macrocycle.seasonId),
+    });
+  }
+
   private async requireSeason(seasonId: string): Promise<Season> {
     const season = await this.storage.get<Season>("seasons", seasonId);
     if (!season)
@@ -185,6 +395,65 @@ export class SeasonPlanningService {
       );
     }
     return track;
+  }
+
+  private async requireTargetEvent(
+    seasonId: string,
+    eventId: string | undefined,
+  ): Promise<void> {
+    if (!eventId) return;
+    const event = await this.storage.get<Event>("events", eventId);
+    if (!event || event.seasonId !== seasonId) {
+      throw new PlanningValidationError(
+        "Der Zielwettkampf gehört nicht zu dieser Saison.",
+      );
+    }
+  }
+
+  private async requireMacrocycle(macrocycleId: string): Promise<Macrocycle> {
+    const macrocycle = await this.storage.get<Macrocycle>(
+      "macrocycles",
+      macrocycleId,
+    );
+    if (!macrocycle) {
+      throw new PlanningValidationError("Makrozyklus wurde nicht gefunden.");
+    }
+    return macrocycle;
+  }
+
+  private async requireMesocycle(mesocycleId: string): Promise<Mesocycle> {
+    const mesocycle = await this.storage.get<Mesocycle>(
+      "mesocycles",
+      mesocycleId,
+    );
+    if (!mesocycle) {
+      throw new PlanningValidationError("Mesozyklus wurde nicht gefunden.");
+    }
+    return mesocycle;
+  }
+
+  private assertWithinMesocycle(
+    mesocycle: Mesocycle,
+    startDate: string,
+    endDate: string,
+  ): void {
+    if (startDate < mesocycle.startDate || endDate > mesocycle.endDate) {
+      throw new PlanningValidationError(
+        "Der Zeitraum muss vollständig innerhalb des Mesozyklus liegen.",
+      );
+    }
+  }
+
+  private assertWithinMacrocycle(
+    macrocycle: Macrocycle,
+    startDate: string,
+    endDate: string,
+  ): void {
+    if (startDate < macrocycle.startDate || endDate > macrocycle.endDate) {
+      throw new PlanningValidationError(
+        "Der Zeitraum muss vollständig innerhalb des Makrozyklus liegen.",
+      );
+    }
   }
 
   private assertWithinSeason(

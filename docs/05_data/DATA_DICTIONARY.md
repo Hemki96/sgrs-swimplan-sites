@@ -1,6 +1,7 @@
 # Data Dictionary
 
 ## Season
+
 - `id`
 - `name`
 - `startDate`
@@ -14,6 +15,7 @@
 - `deletedAt`
 
 ## EventTrack
+
 - `id`
 - `seasonId`
 - `name`
@@ -23,6 +25,7 @@
 - `deletedAt`
 
 ## Event
+
 - `id`
 - `seasonId`
 - `trackId`
@@ -38,6 +41,7 @@
 - `deletedAt`
 
 ## CalendarConstraint
+
 - `id`
 - `seasonId`
 - `type`
@@ -50,6 +54,7 @@
 - `deletedAt`
 
 ## Macrocycle
+
 - `id`
 - `seasonId`
 - `name`
@@ -57,20 +62,24 @@
 - `endDate`
 - `goal`
 - `targetEventId`
+- `notes`
 - `version`
 - `deletedAt`
 
 ## Mesocycle
+
 - `id`
 - `macrocycleId`
 - `name`
 - `startDate`
 - `endDate`
 - `goal`
+- `notes`
 - `version`
 - `deletedAt`
 
 ## Microcycle
+
 - `id`
 - `mesocycleId`
 - `name`
@@ -83,6 +92,7 @@
 - `deletedAt`
 
 ## MicrocycleSegment
+
 - `id`
 - `microcycleId`
 - `name`
@@ -94,6 +104,7 @@
 - `deletedAt`
 
 ## PeriodizationDimension
+
 - `id`
 - `seasonId`
 - `name`
@@ -104,6 +115,7 @@
 - `version`
 
 ## FocusDefinition
+
 - `id`
 - `seasonId`
 - `dimensionId`
@@ -114,6 +126,7 @@
 - `version`
 
 ## FocusSegment
+
 - `id`
 - `seasonId`
 - `dimensionId`
@@ -125,6 +138,7 @@
 - `deletedAt`
 
 ## TrainingDay
+
 - `id`
 - `seasonId`
 - `date`
@@ -133,6 +147,7 @@
 - `version`
 
 ## TrainingSession
+
 - `id`
 - `trainingDayId`
 - `title`
@@ -148,6 +163,7 @@
 - `deletedAt`
 
 ## EquipmentItem
+
 - `id`
 - `seasonId`
 - `name`
@@ -157,11 +173,13 @@
 - `version`
 
 ## SessionEquipment
+
 - `sessionId`
 - `equipmentId`
 - `requirementLevel`
 
 ## Revision
+
 - `id`
 - `seasonId`
 - `revisionNumber`

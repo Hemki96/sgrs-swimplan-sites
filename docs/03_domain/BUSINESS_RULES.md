@@ -1,4 +1,5 @@
 # Business Rules
+
 BR-001 Meso innerhalb Macro.
 BR-002 Micro innerhalb Meso.
 BR-003 Segmente innerhalb Micro.
@@ -13,3 +14,7 @@ BR-011 keine personenbezogenen/medizinischen Felder.
 BR-012 Wettkämpfe und Kalenderrestriktionen liegen vollständig innerhalb ihrer Saison.
 BR-013 Wettkampf und Eventspur gehören zur selben Saison.
 BR-014 Eine Eventspur mit aktiven Wettkämpfen kann nicht gelöscht werden.
+BR-015 Makrozyklen liegen vollständig innerhalb ihrer Saison.
+BR-016 Der optionale Zielwettkampf eines Makrozyklus gehört zu derselben Saison.
+BR-017 Ein Makrozyklus mit aktiven Mesozyklen kann nicht gelöscht werden.
+BR-018 Ein Mesozyklus mit aktiven Mikrozyklen kann nicht gelöscht werden.

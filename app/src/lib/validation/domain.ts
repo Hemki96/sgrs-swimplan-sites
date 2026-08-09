@@ -79,6 +79,53 @@ export type CalendarConstraintInput = z.infer<
   typeof calendarConstraintInputSchema
 >;
 
+export const macrocycleInputSchema = datedEntitySchema
+  .extend({
+    goal: z.string().trim().min(1, "Ziel ist erforderlich."),
+    targetEventId: z.string().trim().optional(),
+    notes: z.string().trim().min(1, "Notiz ist erforderlich."),
+  })
+  .refine(({ startDate, endDate }) => startDate <= endDate, {
+    message: "Das Startdatum muss vor oder am Enddatum liegen.",
+    path: ["endDate"],
+  });
+
+export type MacrocycleInput = z.infer<typeof macrocycleInputSchema>;
+
+export const mesocycleInputSchema = datedEntitySchema
+  .extend({
+    macrocycleId: z.string().trim().min(1, "Makrozyklus ist erforderlich."),
+    goal: z.string().trim().min(1, "Ziel ist erforderlich."),
+    notes: z.string().trim().min(1, "Notiz ist erforderlich."),
+  })
+  .refine(({ startDate, endDate }) => startDate <= endDate, {
+    message: "Das Startdatum muss vor oder am Enddatum liegen.",
+    path: ["endDate"],
+  });
+
+export type MesocycleInput = z.infer<typeof mesocycleInputSchema>;
+
+export const microcycleInputSchema = datedEntitySchema
+  .extend({
+    mesocycleId: z.string().trim().min(1, "Mesozyklus ist erforderlich."),
+    goal: z.string().trim().min(1, "Ziel ist erforderlich."),
+    targetRpe: z
+      .number()
+      .int("Target RPE muss eine ganze Zahl sein.")
+      .min(1, "Target RPE muss zwischen 1 und 10 liegen.")
+      .max(10, "Target RPE muss zwischen 1 und 10 liegen."),
+    targetVolumeMeters: z
+      .number()
+      .min(0, "Zielumfang muss mindestens 0 Meter sein.")
+      .optional(),
+  })
+  .refine(({ startDate, endDate }) => startDate <= endDate, {
+    message: "Das Startdatum muss vor oder am Enddatum liegen.",
+    path: ["endDate"],
+  });
+
+export type MicrocycleInput = z.infer<typeof microcycleInputSchema>;
+
 export function assertRpe(v: number | undefined) {
   if (v === undefined) return;
   if (!Number.isInteger(v) || v < 1 || v > 10)

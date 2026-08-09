@@ -17,6 +17,8 @@ describe("domain types", () => {
       name: "Foundation",
       startDate: "2026-08-01",
       endDate: "2026-10-31",
+      goal: "Grundlage aufbauen",
+      notes: "Ruhiger Einstieg",
       version: 1,
     } satisfies Macrocycle;
     const meso = {
@@ -25,6 +27,8 @@ describe("domain types", () => {
       name: "Aerobic base",
       startDate: "2026-08-01",
       endDate: "2026-08-31",
+      goal: "Aerobe Grundlage",
+      notes: "Vier Belastungswochen",
       version: 1,
     } satisfies Mesocycle;
     const micro = {
@@ -33,6 +37,7 @@ describe("domain types", () => {
       name: "Week 1",
       startDate: "2026-08-03",
       endDate: "2026-08-09",
+      goal: "Aerobe Belastung",
       targetRpe: 5,
       targetVolumeMeters: 20_000,
       version: 1,

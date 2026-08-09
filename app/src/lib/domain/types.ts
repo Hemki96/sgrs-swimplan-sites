@@ -62,8 +62,9 @@ export interface Macrocycle extends SoftDeletableEntity {
   name: string;
   startDate: ISODate;
   endDate: ISODate;
-  goal?: string;
+  goal: string;
   targetEventId?: Id;
+  notes: string;
 }
 
 export interface Mesocycle extends SoftDeletableEntity {
@@ -71,7 +72,8 @@ export interface Mesocycle extends SoftDeletableEntity {
   name: string;
   startDate: ISODate;
   endDate: ISODate;
-  goal?: string;
+  goal: string;
+  notes: string;
 }
 
 export interface Microcycle extends SoftDeletableEntity {
@@ -79,9 +81,9 @@ export interface Microcycle extends SoftDeletableEntity {
   name: string;
   startDate: ISODate;
   endDate: ISODate;
-  targetRpe?: number;
+  targetRpe: number;
   targetVolumeMeters?: number;
-  goal?: string;
+  goal: string;
 }
 
 export interface MicrocycleSegment extends SoftDeletableEntity {
