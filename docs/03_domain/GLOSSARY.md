@@ -1,0 +1,11 @@
+# Glossar
+- Saison: kompletter Planungszeitraum.
+- Makrozyklus: großer Abschnitt.
+- Mesozyklus: Block im Makro.
+- Mikrozyklus: meist Woche.
+- Mikrozyklussegment: Teil des Mikrozyklus.
+- Periodisierungsdimension: paralleler Entwicklungsstrang.
+- Focus Segment: zeitlich gültiger Schwerpunkt.
+- Main Focus: primärer Belastungsfokus einer Session.
+- Technical Focus: technischer Fokus.
+- Target RPE: geplante Belastung.

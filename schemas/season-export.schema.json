@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "SGRS SwimPlan Export",
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "exportedAt",
+    "season"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": "1.0"
+    },
+    "exportedAt": {
+      "type": "string"
+    },
+    "season": {
+      "type": "object"
+    }
+  }
+}

@@ -1,0 +1,28 @@
+:root {
+  font-family: Inter, system-ui, sans-serif;
+  color: #17181a;
+  background: #f7f8fa;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+}
+
+.app-shell {
+  width: min(100% - 2rem, 72rem);
+  margin-inline: auto;
+  padding-block: 3rem;
+}
+
+.app-shell h1 {
+  margin-block: 0 0.75rem;
+}
+
+.app-shell p {
+  margin: 0;
+  color: #5e6470;
+}

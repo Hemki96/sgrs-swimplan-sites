@@ -1,0 +1,45 @@
+{
+  "schemaVersion": "1.0",
+  "exportedAt": "2026-08-07T12:00:00Z",
+  "season": {
+    "id": "season-2026-27",
+    "name": "Saison 2026/27",
+    "startDate": "2026-08-17",
+    "endDate": "2027-07-31",
+    "status": "draft",
+    "version": 1
+  },
+  "eventTracks": [],
+  "events": [],
+  "calendarConstraints": [],
+  "macrocycles": [],
+  "mesocycles": [],
+  "microcycles": [],
+  "microcycleSegments": [],
+  "periodizationDimensions": [
+    {
+      "id": "dim-aero",
+      "seasonId": "season-2026-27",
+      "name": "Aerobic",
+      "code": "AERO",
+      "sortOrder": 2,
+      "active": true,
+      "version": 1
+    },
+    {
+      "id": "dim-anae",
+      "seasonId": "season-2026-27",
+      "name": "Anaerobic",
+      "code": "ANAE",
+      "sortOrder": 3,
+      "active": true,
+      "version": 1
+    }
+  ],
+  "focusDefinitions": [],
+  "focusSegments": [],
+  "trainingDays": [],
+  "trainingSessions": [],
+  "equipmentItems": [],
+  "sessionEquipment": []
+}
