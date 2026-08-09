@@ -40,8 +40,9 @@ export class InMemoryStorageAdapter implements StorageAdapter {
   }
 
   async get<T>(collection: StorageCollection, id: Id): Promise<T | null> {
-    const entity = this.data.get(collection)?.get(id);
-    return entity === undefined ? null : this.copy(entity as T);
+    const entity = this.data.get(collection)?.get(id) as
+      (T & { deletedAt?: string | null }) | undefined;
+    return entity === undefined || entity.deletedAt ? null : this.copy(entity);
   }
 
   async list<T>(
