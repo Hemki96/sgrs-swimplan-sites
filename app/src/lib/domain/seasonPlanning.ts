@@ -246,6 +246,13 @@ export class SeasonPlanningService {
     const values = macrocycleInputSchema.parse(input);
     this.assertWithinSeason(season, values.startDate, values.endDate);
     await this.requireTargetEvent(macrocycle.seasonId, values.targetEventId);
+    const mesocycles = await this.storage.list<Mesocycle>("mesocycles");
+    this.assertChildrenWithinRange(
+      mesocycles.filter((item) => item.macrocycleId === macrocycle.id),
+      values.startDate,
+      values.endDate,
+      "Mesozyklen",
+    );
     return this.storage.put(
       "macrocycles",
       {
@@ -316,6 +323,13 @@ export class SeasonPlanningService {
       targetMacrocycle,
       values.startDate,
       values.endDate,
+    );
+    const microcycles = await this.storage.list<Microcycle>("microcycles");
+    this.assertChildrenWithinRange(
+      microcycles.filter((item) => item.mesocycleId === mesocycle.id),
+      values.startDate,
+      values.endDate,
+      "Mikrozyklen",
     );
     return this.storage.put(
       "mesocycles",
@@ -389,6 +403,15 @@ export class SeasonPlanningService {
       targetMesocycle,
       values.startDate,
       values.endDate,
+    );
+    const segments = await this.storage.list<MicrocycleSegment>(
+      "microcycle_segments",
+    );
+    this.assertChildrenWithinRange(
+      segments.filter((item) => item.microcycleId === microcycle.id),
+      values.startDate,
+      values.endDate,
+      "Mikrozyklussegmente",
     );
     return this.storage.put(
       "microcycles",
@@ -717,6 +740,23 @@ export class SeasonPlanningService {
       expectedVersion: segment.version,
       revision: this.revision(segment.seasonId),
     });
+  }
+
+  private assertChildrenWithinRange(
+    children: Array<{ startDate: string; endDate: string }>,
+    startDate: string,
+    endDate: string,
+    childLabel: string,
+  ): void {
+    if (
+      children.some(
+        (child) => child.startDate < startDate || child.endDate > endDate,
+      )
+    ) {
+      throw new PlanningValidationError(
+        `Der Zeitraum kann nicht geändert werden, weil vorhandene ${childLabel} außerhalb liegen würden.`,
+      );
+    }
   }
 
   private async requireSeason(seasonId: string): Promise<Season> {

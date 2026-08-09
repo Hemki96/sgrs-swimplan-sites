@@ -10,7 +10,7 @@ Nur diese Phase.
 Keine späteren Funktionen vorziehen.
 
 ## Meilensteine
-- [ ] M1: Matrix Model
+- [x] M1: Matrix Model
 - [ ] M2: Headers
 - [ ] M3: Rows
 - [ ] M4: Sticky UX
@@ -20,7 +20,9 @@ Keine späteren Funktionen vorziehen.
 Alle Meilensteine + Quality Gate.
 
 ## Fortschritt
-Noch nicht begonnen.
+M1 abgeschlossen: UI-unabhängiges ViewModel für Monate, ISO-Kalenderwochen,
+optionale Mikrozyklussegmente und die vertikalen Matrixbereiche inklusive
+Eventspuren. Unit-Tests decken eine Saison mit 53 sichtbaren Wochen ab.
 
 ## Entscheidungen
 Keine.
