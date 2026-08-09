@@ -2,6 +2,7 @@ import type {
   CalendarConstraint,
   Event,
   EventTrack,
+  EquipmentItem,
   FocusDefinition,
   FocusSegment,
   Macrocycle,
@@ -10,6 +11,7 @@ import type {
   MicrocycleSegment,
   PeriodizationDimension,
   Season,
+  SessionEquipment,
   TrainingDay,
   TrainingSession,
 } from "./types";
@@ -18,6 +20,7 @@ import {
   calendarConstraintInputSchema,
   eventInputSchema,
   eventTrackInputSchema,
+  equipmentItemInputSchema,
   focusDefinitionInputSchema,
   focusSegmentInputSchema,
   macrocycleInputSchema,
@@ -30,6 +33,7 @@ import {
   type CalendarConstraintInput,
   type EventInput,
   type EventTrackInput,
+  type EquipmentItemInput,
   type FocusDefinitionInput,
   type FocusSegmentInput,
   type MacrocycleInput,
@@ -848,8 +852,137 @@ export class SeasonPlanningService {
   }
 
   async initializeStandardEquipment(seasonId: string): Promise<void> {
-    void seasonId;
-    // Stammdaten werden mit der ersten Session-Eingabe bedarfsgerecht erfasst.
+    await this.requireSeason(seasonId);
+    if ((await this.listEquipment(seasonId)).length > 0) return;
+    const names = [
+      "Wettkampfanzug",
+      "Kurzflossen",
+      "Paddles",
+      "Schnorchel",
+      "Pullkick",
+      "Brett",
+      "Fallschirm",
+      "Pulssensor",
+      "Trinkflasche",
+    ];
+    for (const [sortOrder, name] of names.entries()) {
+      await this.createEquipmentItem(seasonId, {
+        name,
+        code: toCode(name),
+        active: true,
+        sortOrder,
+      });
+    }
+  }
+
+  async listEquipment(seasonId: string): Promise<EquipmentItem[]> {
+    return (await this.storage.list<EquipmentItem>("equipment_items"))
+      .filter((item) => item.seasonId === seasonId)
+      .sort(
+        (a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name),
+      );
+  }
+
+  async createEquipmentItem(
+    seasonId: string,
+    input: EquipmentItemInput,
+  ): Promise<EquipmentItem> {
+    await this.requireSeason(seasonId);
+    const values = equipmentItemInputSchema.parse(input);
+    await this.assertUniqueEquipment(seasonId, values.name, values.code);
+    return this.storage.put(
+      "equipment_items",
+      { id: this.createId(), seasonId, ...values, version: 0 },
+      { expectedVersion: 0, revision: this.revision(seasonId) },
+    );
+  }
+
+  async updateEquipmentItem(
+    item: EquipmentItem,
+    input: EquipmentItemInput,
+  ): Promise<EquipmentItem> {
+    const values = equipmentItemInputSchema.parse(input);
+    await this.assertUniqueEquipment(
+      item.seasonId,
+      values.name,
+      values.code,
+      item.id,
+    );
+    return this.storage.put(
+      "equipment_items",
+      { ...item, ...values },
+      { expectedVersion: item.version, revision: this.revision(item.seasonId) },
+    );
+  }
+
+  async deleteEquipmentItem(item: EquipmentItem): Promise<void> {
+    const links =
+      await this.storage.list<SessionEquipment>("session_equipment");
+    if (links.some((link) => link.equipmentId === item.id))
+      throw new PlanningValidationError(
+        "Verwendetes Equipment kann nicht gelöscht werden. Deaktiviere es stattdessen.",
+      );
+    return this.storage.softDelete("equipment_items", item.id, {
+      expectedVersion: item.version,
+      revision: this.revision(item.seasonId),
+    });
+  }
+
+  async listSessionEquipment(sessionId: string): Promise<SessionEquipment[]> {
+    return (
+      await this.storage.list<SessionEquipment>("session_equipment")
+    ).filter((link) => link.sessionId === sessionId);
+  }
+
+  async setSessionEquipment(
+    seasonId: string,
+    sessionId: string,
+    equipmentId: string,
+    requirementLevel: SessionEquipment["requirementLevel"] | null,
+  ): Promise<void> {
+    const [session, item] = await Promise.all([
+      this.storage.get<TrainingSession>("training_sessions", sessionId),
+      this.storage.get<EquipmentItem>("equipment_items", equipmentId),
+    ]);
+    if (!session || !item || item.seasonId !== seasonId || !item.active)
+      throw new PlanningValidationError(
+        "Session oder aktives Equipment wurde nicht gefunden.",
+      );
+    const day = await this.storage.get<TrainingDay>(
+      "training_days",
+      session.trainingDayId,
+    );
+    if (!day || day.seasonId !== seasonId)
+      throw new PlanningValidationError(
+        "Session gehört nicht zu dieser Saison.",
+      );
+    const current = (await this.listSessionEquipment(sessionId)).find(
+      (link) => link.equipmentId === equipmentId,
+    );
+    if (requirementLevel === null) {
+      if (current)
+        await this.storage.softDelete("session_equipment", current.id, {
+          expectedVersion: current.version,
+          revision: this.revision(seasonId),
+        });
+      return;
+    }
+    await this.storage.put(
+      "session_equipment",
+      current
+        ? { ...current, requirementLevel }
+        : {
+            id: this.createId(),
+            sessionId,
+            equipmentId,
+            requirementLevel,
+            version: 0,
+          },
+      {
+        expectedVersion: current?.version ?? 0,
+        revision: this.revision(seasonId),
+      },
+    );
   }
 
   private assertChildrenWithinRange(
@@ -874,6 +1007,27 @@ export class SeasonPlanningService {
     if (!season)
       throw new PlanningValidationError("Saison wurde nicht gefunden.");
     return season;
+  }
+
+  private async assertUniqueEquipment(
+    seasonId: string,
+    name: string,
+    code: string,
+    ignoredId?: string,
+  ): Promise<void> {
+    const items = await this.listEquipment(seasonId);
+    if (
+      items.some(
+        (item) =>
+          item.id !== ignoredId &&
+          (item.name.toLocaleLowerCase("de") === name.toLocaleLowerCase("de") ||
+            item.code === code),
+      )
+    ) {
+      throw new PlanningValidationError(
+        "Name und Code müssen innerhalb der Saison eindeutig sein.",
+      );
+    }
   }
 
   private async requireDimension(

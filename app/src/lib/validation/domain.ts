@@ -219,6 +219,14 @@ export const trainingSessionInputSchema = z.object({
 });
 export type TrainingSessionInput = z.infer<typeof trainingSessionInputSchema>;
 
+export const equipmentItemInputSchema = z.object({
+  name: z.string().trim().min(1, "Name ist erforderlich."),
+  code: codeSchema,
+  active: z.boolean(),
+  sortOrder: z.number().int().min(0, "Reihenfolge muss mindestens 0 sein."),
+});
+export type EquipmentItemInput = z.infer<typeof equipmentItemInputSchema>;
+
 export function assertRpe(v: number | undefined) {
   if (v === undefined) return;
   if (!Number.isInteger(v) || v < 1 || v > 10)

@@ -15,9 +15,9 @@ Keine späteren Funktionen vorziehen.
 ## Meilensteine
 
 - [x] M1: Training Days
-- [ ] M2: Multiple Sessions
-- [ ] M3: Session Editor
-- [ ] M4: Equipment
+- [x] M2: Multiple Sessions
+- [x] M3: Session Editor
+- [x] M4: Equipment
 - [ ] M5: Key Sessions
 
 ## Akzeptanz
@@ -26,13 +26,14 @@ Alle Meilensteine + Quality Gate.
 
 ## Fortschritt
 
-M1 abgeschlossen: TrainingDay CRUD mit Datum, frei editierbarem Day Context,
-Notiz, Saisonvalidierung, Revisionen, Soft Delete und UI. TrainingSessions sind
-noch nicht implementiert.
+M1–M4 abgeschlossen. Equipment ist saisonal frei pflegbar und pro Session als
+required, recommended oder optional zuordenbar. Required Equipment wird in der
+Session-Ansicht als eigener Warnblock hervorgehoben.
 
 ## Entscheidungen
 
-Keine.
+SessionEquipment ist versioniert und soft-deletable, damit jede Änderung eine
+Revision erzeugt. Verwendete Items werden deaktiviert statt gelöscht.
 
 ## Abschluss
 

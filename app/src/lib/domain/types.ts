@@ -143,7 +143,7 @@ export interface TrainingSession extends SoftDeletableEntity {
   equipment?: string;
 }
 
-export interface EquipmentItem extends VersionedEntity {
+export interface EquipmentItem extends SoftDeletableEntity {
   seasonId: Id;
   name: string;
   code: string;
@@ -151,7 +151,7 @@ export interface EquipmentItem extends VersionedEntity {
   sortOrder: number;
 }
 
-export interface SessionEquipment {
+export interface SessionEquipment extends SoftDeletableEntity {
   sessionId: Id;
   equipmentId: Id;
   requirementLevel: RequirementLevel;
