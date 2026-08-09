@@ -193,6 +193,32 @@ export const focusSegmentInputSchema = z
 
 export type FocusSegmentInput = z.infer<typeof focusSegmentInputSchema>;
 
+export const trainingDayInputSchema = z.object({
+  date: z.string().regex(isoDate, "Datum ist erforderlich."),
+  dayContext: z.string().trim(),
+  notes: z.string().trim(),
+});
+
+export type TrainingDayInput = z.infer<typeof trainingDayInputSchema>;
+
+export const trainingSessionInputSchema = z.object({
+  trainingDayId: z.string().min(1),
+  title: z.string().trim(),
+  startTime: z
+    .string()
+    .regex(/^(?:[01]\d|2[0-3]):[0-5]\d$/)
+    .or(z.literal("")),
+  durationMinutes: z.number().int().positive().optional(),
+  volumeMeters: z.number().min(0).optional(),
+  expectedRpe: z.number().int().min(1).max(10).optional(),
+  mainFocusId: z.string(),
+  technicalFocusId: z.string(),
+  keySession: z.boolean(),
+  athleteNote: z.string().trim(),
+  equipment: z.string().trim(),
+});
+export type TrainingSessionInput = z.infer<typeof trainingSessionInputSchema>;
+
 export function assertRpe(v: number | undefined) {
   if (v === undefined) return;
   if (!Number.isInteger(v) || v < 1 || v > 10)

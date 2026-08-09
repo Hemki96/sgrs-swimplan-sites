@@ -122,7 +122,7 @@ export interface FocusSegment extends SoftDeletableEntity {
   notes?: string;
 }
 
-export interface TrainingDay extends VersionedEntity {
+export interface TrainingDay extends SoftDeletableEntity {
   seasonId: Id;
   date: ISODate;
   dayContext?: string;
@@ -140,6 +140,7 @@ export interface TrainingSession extends SoftDeletableEntity {
   technicalFocusId?: Id;
   keySession: boolean;
   athleteNote?: string;
+  equipment?: string;
 }
 
 export interface EquipmentItem extends VersionedEntity {

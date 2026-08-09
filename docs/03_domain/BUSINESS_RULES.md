@@ -23,3 +23,4 @@ BR-020 Fokussegmente liegen vollständig innerhalb ihrer Saison.
 BR-021 Eine Fokusdefinition gehört zu genau einer Dimension derselben Saison.
 BR-022 Fokussegmente verschiedener Dimensionen dürfen zeitlich parallel laufen.
 BR-023 Dimensionen und Fokusdefinitionen mit aktiven Referenzen werden nicht gelöscht.
+BR-024 Trainingstage liegen innerhalb ihrer Saison.

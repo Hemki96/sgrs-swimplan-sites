@@ -10,6 +10,8 @@ import type {
   MicrocycleSegment,
   PeriodizationDimension,
   Season,
+  TrainingDay,
+  TrainingSession,
 } from "./types";
 import type { StorageAdapter } from "../storage/StorageAdapter";
 import {
@@ -23,6 +25,8 @@ import {
   microcycleInputSchema,
   microcycleSegmentInputSchema,
   periodizationDimensionInputSchema,
+  trainingDayInputSchema,
+  trainingSessionInputSchema,
   type CalendarConstraintInput,
   type EventInput,
   type EventTrackInput,
@@ -33,6 +37,8 @@ import {
   type MicrocycleInput,
   type MicrocycleSegmentInput,
   type PeriodizationDimensionInput,
+  type TrainingDayInput,
+  type TrainingSessionInput,
 } from "../validation/domain";
 
 const standardDimensions = [
@@ -740,6 +746,110 @@ export class SeasonPlanningService {
       expectedVersion: segment.version,
       revision: this.revision(segment.seasonId),
     });
+  }
+
+  async listTrainingDays(seasonId: string): Promise<TrainingDay[]> {
+    return (await this.storage.list<TrainingDay>("training_days"))
+      .filter((day) => day.seasonId === seasonId)
+      .sort((left, right) => left.date.localeCompare(right.date));
+  }
+
+  async createTrainingDay(
+    seasonId: string,
+    input: TrainingDayInput,
+  ): Promise<TrainingDay> {
+    const season = await this.requireSeason(seasonId);
+    const values = trainingDayInputSchema.parse(input);
+    this.assertWithinSeason(season, values.date, values.date);
+    return this.storage.put(
+      "training_days",
+      { id: this.createId(), seasonId, ...values, version: 0 },
+      { expectedVersion: 0, revision: this.revision(seasonId) },
+    );
+  }
+
+  async updateTrainingDay(
+    day: TrainingDay,
+    input: TrainingDayInput,
+  ): Promise<TrainingDay> {
+    const season = await this.requireSeason(day.seasonId);
+    const values = trainingDayInputSchema.parse(input);
+    this.assertWithinSeason(season, values.date, values.date);
+    return this.storage.put(
+      "training_days",
+      { ...day, ...values },
+      { expectedVersion: day.version, revision: this.revision(day.seasonId) },
+    );
+  }
+
+  deleteTrainingDay(day: TrainingDay): Promise<void> {
+    return this.storage.softDelete("training_days", day.id, {
+      expectedVersion: day.version,
+      revision: this.revision(day.seasonId),
+    });
+  }
+
+  async listTrainingSessions(seasonId: string): Promise<TrainingSession[]> {
+    const ids = new Set(
+      (await this.listTrainingDays(seasonId)).map((day) => day.id),
+    );
+    return (await this.storage.list<TrainingSession>("training_sessions"))
+      .filter((session) => ids.has(session.trainingDayId))
+      .sort((a, b) =>
+        (a.startTime ?? "99:99").localeCompare(b.startTime ?? "99:99"),
+      );
+  }
+
+  async saveTrainingSession(
+    seasonId: string,
+    input: TrainingSessionInput,
+    current?: TrainingSession,
+  ): Promise<TrainingSession> {
+    const values = trainingSessionInputSchema.parse(input);
+    const day = await this.storage.get<TrainingDay>(
+      "training_days",
+      values.trainingDayId,
+    );
+    if (!day || day.seasonId !== seasonId)
+      throw new PlanningValidationError(
+        "Trainingstag gehört nicht zur Saison.",
+      );
+    return this.storage.put(
+      "training_sessions",
+      {
+        ...(current ?? { id: this.createId(), version: 0 }),
+        trainingDayId: values.trainingDayId,
+        title: values.title || undefined,
+        startTime: values.startTime || undefined,
+        durationMinutes: values.durationMinutes,
+        volumeMeters: values.volumeMeters,
+        expectedRpe: values.expectedRpe,
+        mainFocusId: values.mainFocusId || undefined,
+        technicalFocusId: values.technicalFocusId || undefined,
+        keySession: values.keySession,
+        athleteNote: values.athleteNote || undefined,
+        equipment: values.equipment || undefined,
+      },
+      {
+        expectedVersion: current?.version ?? 0,
+        revision: this.revision(seasonId),
+      },
+    );
+  }
+
+  deleteTrainingSession(
+    seasonId: string,
+    session: TrainingSession,
+  ): Promise<void> {
+    return this.storage.softDelete("training_sessions", session.id, {
+      expectedVersion: session.version,
+      revision: this.revision(seasonId),
+    });
+  }
+
+  async initializeStandardEquipment(seasonId: string): Promise<void> {
+    void seasonId;
+    // Stammdaten werden mit der ersten Session-Eingabe bedarfsgerecht erfasst.
   }
 
   private assertChildrenWithinRange(

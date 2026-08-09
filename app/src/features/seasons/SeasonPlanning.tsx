@@ -23,6 +23,8 @@ import type {
   MicrocycleSegment,
   PeriodizationDimension,
   Season,
+  TrainingDay,
+  TrainingSession,
 } from "../../lib/domain/types";
 import type { StorageAdapter } from "../../lib/storage/StorageAdapter";
 import {
@@ -42,6 +44,9 @@ import {
   type MicrocycleSegmentInput,
 } from "../../lib/validation/domain";
 import { PeriodizationManagement } from "./PeriodizationManagement";
+import { TrainingDayManagement } from "./TrainingDayManagement";
+import { SeasonMatrix } from "../season-matrix/SeasonMatrix";
+import { TrainerWeekView } from "../training-week/TrainerWeekView";
 
 const blankTrack: EventTrackInput = { name: "", sortOrder: 0, visible: true };
 const blankEvent: EventInput = {
@@ -119,6 +124,10 @@ export function SeasonPlanning({
     [],
   );
   const [focusSegments, setFocusSegments] = useState<FocusSegment[]>([]);
+  const [trainingDays, setTrainingDays] = useState<TrainingDay[]>([]);
+  const [trainingSessions, setTrainingSessions] = useState<TrainingSession[]>(
+    [],
+  );
   const [notice, setNotice] = useState("");
 
   async function reload() {
@@ -133,6 +142,8 @@ export function SeasonPlanning({
       nextDimensions,
       nextFocusDefinitions,
       nextFocusSegments,
+      nextTrainingDays,
+      nextTrainingSessions,
     ] = await Promise.all([
       service.listTracks(season.id),
       service.listEvents(season.id),
@@ -144,6 +155,8 @@ export function SeasonPlanning({
       service.listDimensions(season.id),
       service.listFocusDefinitions(season.id),
       service.listFocusSegments(season.id),
+      service.listTrainingDays(season.id),
+      service.listTrainingSessions(season.id),
     ]);
     setTracks(nextTracks);
     setEvents(nextEvents);
@@ -155,12 +168,15 @@ export function SeasonPlanning({
     setDimensions(nextDimensions);
     setFocusDefinitions(nextFocusDefinitions);
     setFocusSegments(nextFocusSegments);
+    setTrainingDays(nextTrainingDays);
+    setTrainingSessions(nextTrainingSessions);
   }
 
   useEffect(() => {
     let active = true;
     void service
       .initializeStandardPeriodization(season.id)
+      .then(() => service.initializeStandardEquipment(season.id))
       .then(() =>
         Promise.all([
           service.listTracks(season.id),
@@ -173,6 +189,8 @@ export function SeasonPlanning({
           service.listDimensions(season.id),
           service.listFocusDefinitions(season.id),
           service.listFocusSegments(season.id),
+          service.listTrainingDays(season.id),
+          service.listTrainingSessions(season.id),
         ]),
       )
       .then(
@@ -187,6 +205,8 @@ export function SeasonPlanning({
           nextDimensions,
           nextFocusDefinitions,
           nextFocusSegments,
+          nextTrainingDays,
+          nextTrainingSessions,
         ]) => {
           if (!active) return;
           setTracks(nextTracks);
@@ -199,6 +219,8 @@ export function SeasonPlanning({
           setDimensions(nextDimensions);
           setFocusDefinitions(nextFocusDefinitions);
           setFocusSegments(nextFocusSegments);
+          setTrainingDays(nextTrainingDays);
+          setTrainingSessions(nextTrainingSessions);
         },
       );
     return () => {
@@ -222,6 +244,28 @@ export function SeasonPlanning({
           {notice}
         </p>
       )}
+      <TrainerWeekView
+        season={season}
+        microcycles={microcycles}
+        mesocycles={mesocycles}
+        focusDefinitions={focusDefinitions}
+        days={trainingDays}
+        sessions={trainingSessions}
+        service={service}
+        onChange={reload}
+      />
+      <SeasonMatrix
+        season={season}
+        tracks={tracks}
+        events={events}
+        constraints={constraints}
+        macrocycles={macrocycles}
+        mesocycles={mesocycles}
+        microcycles={microcycles}
+        dimensions={dimensions}
+        focusDefinitions={focusDefinitions}
+        focusSegments={focusSegments}
+      />
       <TrackSection
         tracks={tracks}
         service={service}
@@ -281,6 +325,13 @@ export function SeasonPlanning({
         dimensions={dimensions}
         focusDefinitions={focusDefinitions}
         focusSegments={focusSegments}
+        service={service}
+        onChange={reload}
+        onNotice={setNotice}
+      />
+      <TrainingDayManagement
+        season={season}
+        days={trainingDays}
         service={service}
         onChange={reload}
         onNotice={setNotice}

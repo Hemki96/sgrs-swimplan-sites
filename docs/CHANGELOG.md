@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-08-09 – Trainer-Wochenansicht
+
+- Editierbarer Wochenkopf mit KW, Mesozyklus, Target RPE, Target Volume und Wochenziel.
+- Montag bis Sonntag mit direkt bearbeitbarem Day Context und 0..n Sessions.
+- Session-Editor für Zeit, Dauer, Umfang, Main/Technical Focus, Expected RPE,
+  Key Session, Equipment und Hinweis; revisionierte Speicherung und Soft Delete.
+- Responsive Pooldeck-Board-Darstellung mit mobilen Tagesbahnen.
+
 ## Unreleased
 - Initiales ChatGPT-Sites-Engineering-Repository.
 

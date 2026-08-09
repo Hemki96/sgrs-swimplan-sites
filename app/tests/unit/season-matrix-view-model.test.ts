@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { buildSeasonMatrixViewModel } from "../../src/features/season-matrix/seasonMatrixViewModel";
+import { buildSeasonMatrixRows } from "../../src/features/season-matrix/SeasonMatrix";
 import type {
   EventTrack,
   MicrocycleSegment,
@@ -110,6 +111,122 @@ describe("season matrix view model", () => {
         endWeekIndex: 2,
       }),
     ]);
+  });
+
+  it("projects competitions, restrictions, phases, focuses and weekly RPE", () => {
+    const trackOne = track("track-1", "WK", 1);
+    const dimension = {
+      id: "dimension-aerobic",
+      seasonId: season.id,
+      name: "Aerobic",
+      code: "AEROBIC",
+      sortOrder: 1,
+      active: true,
+      version: 1,
+    };
+    const rows = buildSeasonMatrixRows({
+      season,
+      tracks: [trackOne],
+      events: [
+        {
+          id: "event-1",
+          seasonId: season.id,
+          trackId: trackOne.id,
+          name: "Meisterschaft",
+          startDate: "2027-07-10",
+          endDate: "2027-07-11",
+          priority: "A",
+          version: 1,
+        },
+      ],
+      constraints: [
+        {
+          id: "constraint-1",
+          seasonId: season.id,
+          type: "Ferien",
+          name: "Weihnachtsferien",
+          startDate: "2026-12-23",
+          endDate: "2027-01-06",
+          version: 1,
+        },
+      ],
+      macrocycles: [
+        {
+          id: "macro-1",
+          seasonId: season.id,
+          name: "Aufbau",
+          startDate: "2026-08-01",
+          endDate: "2027-01-31",
+          goal: "Basis",
+          notes: "",
+          version: 1,
+        },
+      ],
+      mesocycles: [
+        {
+          id: "meso-1",
+          macrocycleId: "macro-1",
+          name: "Basis I",
+          startDate: "2026-08-01",
+          endDate: "2026-09-30",
+          goal: "Ausdauer",
+          notes: "",
+          version: 1,
+        },
+      ],
+      microcycles: [
+        {
+          id: "micro-1",
+          mesocycleId: "meso-1",
+          name: "Woche 1",
+          startDate: "2026-08-03",
+          endDate: "2026-08-09",
+          targetRpe: 6,
+          goal: "Einstieg",
+          version: 1,
+        },
+      ],
+      dimensions: [dimension],
+      focusDefinitions: [
+        {
+          id: "focus-1",
+          seasonId: season.id,
+          dimensionId: dimension.id,
+          name: "Aerobic Base",
+          code: "AEROBIC_BASE",
+          active: true,
+          version: 1,
+        },
+      ],
+      focusSegments: [
+        {
+          id: "focus-segment-1",
+          seasonId: season.id,
+          dimensionId: dimension.id,
+          focusDefinitionId: "focus-1",
+          startDate: "2026-08-03",
+          endDate: "2026-09-13",
+          version: 1,
+        },
+      ],
+    });
+
+    expect(
+      rows.find((row) => row.id === "track-track-1")?.blocks[0].label,
+    ).toBe("Meisterschaft");
+    expect(rows.find((row) => row.id === "constraints")?.blocks[0].label).toBe(
+      "Weihnachtsferien",
+    );
+    expect(rows.find((row) => row.id === "macro")?.blocks[0].label).toBe(
+      "Aufbau",
+    );
+    expect(
+      rows.find((row) => row.id === "focus-AEROBIC")?.blocks[0].label,
+    ).toBe("Aerobic Base");
+    expect(rows.find((row) => row.id === "meso")?.blocks[0].label).toBe(
+      "Basis I",
+    );
+    expect(rows.find((row) => row.id === "rpe")?.blocks[0].label).toBe("6");
   });
 });
 
