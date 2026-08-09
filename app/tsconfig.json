@@ -5,10 +5,12 @@
     "strict": true,
     "module": "ESNext",
     "moduleResolution": "Bundler",
+    "types": ["node", "react", "react-dom", "vitest/globals"],
     "resolveJsonModule": true,
     "isolatedModules": true,
     "noEmit": true,
     "jsx": "react-jsx"
   },
-  "include": ["src", "tests"]
+  "include": ["src", "tests"],
+  "exclude": ["**/* 2.ts"]
 }

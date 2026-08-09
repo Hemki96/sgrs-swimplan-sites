@@ -20,14 +20,14 @@ export interface Season extends SoftDeletableEntity {
   name: string;
   startDate: ISODate;
   endDate: ISODate;
-  description?: string;
-  mainGoal?: string;
+  description: string;
+  mainGoal: string;
   status: SeasonStatus;
   createdAt: ISODateTime;
   updatedAt: ISODateTime;
 }
 
-export interface EventTrack extends VersionedEntity {
+export interface EventTrack extends SoftDeletableEntity {
   seasonId: Id;
   name: string;
   sortOrder: number;

@@ -20,6 +20,7 @@
 - `sortOrder`
 - `visible`
 - `version`
+- `deletedAt`
 
 ## Event
 - `id`

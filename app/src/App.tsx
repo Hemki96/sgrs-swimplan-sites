@@ -1,8 +1,9 @@
+import { useState } from "react";
+
+import { SeasonManagement } from "./features/seasons/SeasonManagement";
+import { InMemoryStorageAdapter } from "./lib/storage/InMemoryStorageAdapter";
+
 export function App() {
-  return (
-    <main className="app-shell">
-      <h1>SGRS SwimPlan</h1>
-      <p>Das React-/TypeScript-Grundgerüst ist bereit.</p>
-    </main>
-  );
+  const [storage] = useState(() => new InMemoryStorageAdapter());
+  return <SeasonManagement storage={storage} />;
 }

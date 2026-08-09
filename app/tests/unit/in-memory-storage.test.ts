@@ -10,6 +10,8 @@ const season: Season = {
   name: "2026/27",
   startDate: "2026-08-01",
   endDate: "2027-07-31",
+  description: "Gemeinsame Saisonplanung",
+  mainGoal: "Saisonhöhepunkt",
   status: "draft",
   version: 0,
   createdAt: "2026-08-09T10:00:00.000Z",
