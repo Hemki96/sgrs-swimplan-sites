@@ -44,6 +44,47 @@ test("shows date range validation", async ({ page }) => {
   ).toBeVisible();
 });
 
+test("manages parallel focus segments across periodization dimensions", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await page.getByRole("button", { name: "Neue Saison" }).click();
+  await page.getByLabel("Name").fill("Saison 2026/27");
+  await page.getByLabel("Startdatum").fill("2026-08-01");
+  await page.getByLabel("Enddatum").fill("2027-07-31");
+  await page.getByLabel("Beschreibung").fill("Gemeinsame Planung");
+  await page.getByLabel("Hauptziel").fill("Meisterschaft");
+  await page.getByRole("button", { name: "Saison speichern" }).click();
+  await page.getByRole("button", { name: "Planung öffnen" }).click();
+
+  const dimensions = page.getByRole("region", {
+    name: "Periodisierungsdimensionen",
+  });
+  await expect(dimensions.getByText("Strength", { exact: true })).toBeVisible();
+  await expect(
+    dimensions.getByText("Technical", { exact: true }),
+  ).toBeVisible();
+
+  const segments = page.getByRole("region", { name: "Focus Segments" });
+  await segments.getByLabel("Dimension").selectOption({ label: "Aerobic" });
+  await segments.getByLabel("Fokus").selectOption({ label: "Aerobic Base" });
+  await segments.getByLabel("Startdatum").fill("2026-09-01");
+  await segments.getByLabel("Enddatum").fill("2026-10-31");
+  await segments.getByLabel("Notiz").fill("Grundlagenblock");
+  await segments.getByRole("button", { name: "Fokussegment anlegen" }).click();
+
+  await segments.getByLabel("Dimension").selectOption({ label: "Technical" });
+  await segments.getByLabel("Fokus").selectOption({ label: "Starts" });
+  await segments.getByLabel("Startdatum").fill("2026-09-15");
+  await segments.getByLabel("Enddatum").fill("2026-11-15");
+  await segments.getByRole("button", { name: "Fokussegment anlegen" }).click();
+
+  await expect(
+    segments.getByText("Aerobic Base", { exact: true }),
+  ).toBeVisible();
+  await expect(segments.getByText("Starts", { exact: true })).toBeVisible();
+});
+
 test("manages event tracks, competitions and restrictions", async ({
   page,
 }) => {
@@ -222,6 +263,31 @@ test("manages a microcycle inside its mesocycle", async ({ page }) => {
     .click();
   await expect(microcycles.getByText("KW 33")).toBeVisible();
   await expect(microcycles.getByText("Target RPE 6 · 18000 m")).toBeVisible();
+
+  const segments = page.getByRole("region", {
+    name: "Mikrozyklussegmente",
+  });
+  await segments.getByLabel("Mikrozyklus").selectOption({ label: "KW 33" });
+  await segments.getByLabel("Name").fill("Erste Wochenhälfte");
+  await segments.getByLabel("Startdatum").fill("2026-08-03");
+  await segments.getByLabel("Enddatum").fill("2026-08-06");
+  await segments.getByLabel("Typ").fill("Wochenhälfte");
+  await segments.getByLabel("Reihenfolge").fill("1");
+  await segments
+    .getByRole("button", { name: "Mikrozyklussegment anlegen" })
+    .click();
+  await expect(segments.getByText("Erste Wochenhälfte")).toBeVisible();
+
+  await segments.getByRole("button", { name: "Bearbeiten" }).click();
+  await segments.getByLabel("Name").fill("Training Camp Phase 1");
+  await segments.getByLabel("Typ").fill("Training Camp");
+  await segments
+    .getByRole("button", { name: "Mikrozyklussegment speichern" })
+    .click();
+  await expect(segments.getByText("Training Camp Phase 1")).toBeVisible();
+
+  await segments.getByRole("button", { name: "Löschen" }).click();
+  await expect(segments.getByText("Training Camp Phase 1")).not.toBeVisible();
 
   await microcycles.getByRole("button", { name: "Löschen" }).click();
   await expect(microcycles.getByText("KW 33")).not.toBeVisible();

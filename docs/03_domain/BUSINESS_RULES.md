@@ -18,3 +18,8 @@ BR-015 Makrozyklen liegen vollständig innerhalb ihrer Saison.
 BR-016 Der optionale Zielwettkampf eines Makrozyklus gehört zu derselben Saison.
 BR-017 Ein Makrozyklus mit aktiven Mesozyklen kann nicht gelöscht werden.
 BR-018 Ein Mesozyklus mit aktiven Mikrozyklen kann nicht gelöscht werden.
+BR-019 Ein Mikrozyklus mit aktiven Segmenten kann nicht gelöscht werden.
+BR-020 Fokussegmente liegen vollständig innerhalb ihrer Saison.
+BR-021 Eine Fokusdefinition gehört zu genau einer Dimension derselben Saison.
+BR-022 Fokussegmente verschiedener Dimensionen dürfen zeitlich parallel laufen.
+BR-023 Dimensionen und Fokusdefinitionen mit aktiven Referenzen werden nicht gelöscht.

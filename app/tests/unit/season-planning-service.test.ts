@@ -432,4 +432,145 @@ describe("SeasonPlanningService", () => {
       service.createMicrocycle({ ...input, mesocycleId: "missing-mesocycle" }),
     ).rejects.toThrow("Mesozyklus wurde nicht gefunden.");
   });
+
+  it("creates, orders, updates and soft deletes microcycle segments", async () => {
+    const macrocycle = await service.createMacrocycle(season.id, {
+      name: "Aufbau",
+      startDate: "2026-08-01",
+      endDate: "2026-12-31",
+      goal: "Grundlage entwickeln",
+      notes: "Progressiv steigern",
+    });
+    const mesocycle = await service.createMesocycle({
+      macrocycleId: macrocycle.id,
+      name: "Aerobe Basis",
+      startDate: "2026-08-01",
+      endDate: "2026-09-30",
+      goal: "Ausdauer aufbauen",
+      notes: "Technik stabil halten",
+    });
+    const microcycle = await service.createMicrocycle({
+      mesocycleId: mesocycle.id,
+      name: "KW 32",
+      startDate: "2026-08-03",
+      endDate: "2026-08-09",
+      goal: "Ruhiger Einstieg",
+      targetRpe: 4,
+    });
+    const second = await service.createMicrocycleSegment({
+      microcycleId: microcycle.id,
+      name: "Zweite Wochenhälfte",
+      startDate: "2026-08-07",
+      endDate: "2026-08-09",
+      segmentType: "Wochenhälfte",
+      sortOrder: 2,
+    });
+    const first = await service.createMicrocycleSegment({
+      microcycleId: microcycle.id,
+      name: "Erste Wochenhälfte",
+      startDate: "2026-08-03",
+      endDate: "2026-08-06",
+      segmentType: "Wochenhälfte",
+      sortOrder: 1,
+    });
+
+    await expect(
+      service.listMicrocycleSegments(season.id),
+    ).resolves.toMatchObject([
+      { id: first.id, sortOrder: 1 },
+      { id: second.id, sortOrder: 2 },
+    ]);
+    const updated = await service.updateMicrocycleSegment(first, {
+      microcycleId: microcycle.id,
+      name: "Phase 1",
+      startDate: "2026-08-03",
+      endDate: "2026-08-06",
+      segmentType: "Training Camp",
+      sortOrder: 0,
+    });
+    await expect(service.deleteMicrocycle(microcycle)).rejects.toThrow(
+      "Ein Mikrozyklus mit Segmenten kann nicht gelöscht werden.",
+    );
+    await service.deleteMicrocycleSegment(updated);
+    await service.deleteMicrocycleSegment(second);
+    await service.deleteMicrocycle(microcycle);
+    await expect(service.listMicrocycleSegments(season.id)).resolves.toEqual(
+      [],
+    );
+    await expect(storage.listRevisions(season.id)).resolves.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          operation: "create",
+          entityType: "microcycle_segments",
+        }),
+        expect.objectContaining({
+          operation: "update",
+          entityType: "microcycle_segments",
+        }),
+        expect.objectContaining({
+          operation: "soft_delete",
+          entityType: "microcycle_segments",
+        }),
+      ]),
+    );
+  });
+
+  it("validates microcycle segment ranges and ordering", async () => {
+    const macrocycle = await service.createMacrocycle(season.id, {
+      name: "Aufbau",
+      startDate: "2026-08-01",
+      endDate: "2026-12-31",
+      goal: "Grundlage entwickeln",
+      notes: "Progressiv steigern",
+    });
+    const mesocycle = await service.createMesocycle({
+      macrocycleId: macrocycle.id,
+      name: "Aerobe Basis",
+      startDate: "2026-08-01",
+      endDate: "2026-09-30",
+      goal: "Ausdauer aufbauen",
+      notes: "Technik stabil halten",
+    });
+    const microcycle = await service.createMicrocycle({
+      mesocycleId: mesocycle.id,
+      name: "KW 32",
+      startDate: "2026-08-03",
+      endDate: "2026-08-09",
+      goal: "Ruhiger Einstieg",
+      targetRpe: 4,
+    });
+    const input = {
+      microcycleId: microcycle.id,
+      name: "Phase 1",
+      startDate: "2026-08-02",
+      endDate: "2026-08-05",
+      segmentType: "Training Camp",
+      sortOrder: 0,
+    };
+
+    await expect(service.createMicrocycleSegment(input)).rejects.toThrow(
+      "Der Zeitraum muss vollständig innerhalb des Mikrozyklus liegen.",
+    );
+    await expect(
+      service.createMicrocycleSegment({
+        ...input,
+        startDate: "2026-08-06",
+        endDate: "2026-08-05",
+      }),
+    ).rejects.toThrow("Das Startdatum muss vor oder am Enddatum liegen.");
+    await expect(
+      service.createMicrocycleSegment({
+        ...input,
+        startDate: "2026-08-03",
+        sortOrder: -1,
+      }),
+    ).rejects.toThrow("Reihenfolge muss mindestens 0 sein.");
+    await expect(
+      service.createMicrocycleSegment({
+        ...input,
+        microcycleId: "missing-microcycle",
+        startDate: "2026-08-03",
+      }),
+    ).rejects.toThrow("Mikrozyklus wurde nicht gefunden.");
+  });
 });

@@ -2,9 +2,13 @@ import type {
   CalendarConstraint,
   Event,
   EventTrack,
+  FocusDefinition,
+  FocusSegment,
   Macrocycle,
   Mesocycle,
   Microcycle,
+  MicrocycleSegment,
+  PeriodizationDimension,
   Season,
 } from "./types";
 import type { StorageAdapter } from "../storage/StorageAdapter";
@@ -12,16 +16,44 @@ import {
   calendarConstraintInputSchema,
   eventInputSchema,
   eventTrackInputSchema,
+  focusDefinitionInputSchema,
+  focusSegmentInputSchema,
   macrocycleInputSchema,
   mesocycleInputSchema,
   microcycleInputSchema,
+  microcycleSegmentInputSchema,
+  periodizationDimensionInputSchema,
   type CalendarConstraintInput,
   type EventInput,
   type EventTrackInput,
+  type FocusDefinitionInput,
+  type FocusSegmentInput,
   type MacrocycleInput,
   type MesocycleInput,
   type MicrocycleInput,
+  type MicrocycleSegmentInput,
+  type PeriodizationDimensionInput,
 } from "../validation/domain";
+
+const standardDimensions = [
+  "Strength",
+  "Aerobic",
+  "Anaerobic",
+  "Speed",
+  "Tactical",
+  "Technical",
+] as const;
+
+const standardFocuses = {
+  Aerobic: ["Aerobic Base", "Aerobic Capacity", "Aerobic Power"],
+  Anaerobic: [
+    "Anaerobic Capacity",
+    "Anaerobic Power",
+    "Lactate Production",
+    "Lactate Tolerance",
+  ],
+  Technical: ["Starts", "Turns", "Underwater", "Stroke Efficiency"],
+} as const;
 
 export interface SeasonPlanningDependencies {
   createId?: () => string;
@@ -36,6 +68,10 @@ export class PlanningValidationError extends Error {
 
 export class SeasonPlanningService {
   private readonly createId: () => string;
+  private readonly periodizationInitializations = new Map<
+    string,
+    Promise<void>
+  >();
 
   constructor(
     private readonly storage: StorageAdapter,
@@ -369,6 +405,14 @@ export class SeasonPlanningService {
   }
 
   async deleteMicrocycle(microcycle: Microcycle): Promise<void> {
+    const segments = await this.storage.list<MicrocycleSegment>(
+      "microcycle_segments",
+    );
+    if (segments.some((segment) => segment.microcycleId === microcycle.id)) {
+      throw new PlanningValidationError(
+        "Ein Mikrozyklus mit Segmenten kann nicht gelöscht werden.",
+      );
+    }
     const mesocycle = await this.requireMesocycle(microcycle.mesocycleId);
     const macrocycle = await this.requireMacrocycle(mesocycle.macrocycleId);
     return this.storage.softDelete("microcycles", microcycle.id, {
@@ -377,11 +421,383 @@ export class SeasonPlanningService {
     });
   }
 
+  async listMicrocycleSegments(seasonId: string): Promise<MicrocycleSegment[]> {
+    const microcycleIds = new Set(
+      (await this.listMicrocycles(seasonId)).map((microcycle) => microcycle.id),
+    );
+    return (await this.storage.list<MicrocycleSegment>("microcycle_segments"))
+      .filter((segment) => microcycleIds.has(segment.microcycleId))
+      .sort(
+        (left, right) =>
+          left.sortOrder - right.sortOrder ||
+          left.startDate.localeCompare(right.startDate),
+      );
+  }
+
+  async createMicrocycleSegment(
+    input: MicrocycleSegmentInput,
+  ): Promise<MicrocycleSegment> {
+    const values = microcycleSegmentInputSchema.parse(input);
+    const microcycle = await this.requireMicrocycle(values.microcycleId);
+    this.assertWithinMicrocycle(microcycle, values.startDate, values.endDate);
+    const seasonId = await this.seasonIdForMicrocycle(microcycle);
+    return this.storage.put(
+      "microcycle_segments",
+      { id: this.createId(), ...values, version: 0 },
+      { expectedVersion: 0, revision: this.revision(seasonId) },
+    );
+  }
+
+  async updateMicrocycleSegment(
+    segment: MicrocycleSegment,
+    input: MicrocycleSegmentInput,
+  ): Promise<MicrocycleSegment> {
+    const values = microcycleSegmentInputSchema.parse(input);
+    const [currentMicrocycle, targetMicrocycle] = await Promise.all([
+      this.requireMicrocycle(segment.microcycleId),
+      this.requireMicrocycle(values.microcycleId),
+    ]);
+    const [currentSeasonId, targetSeasonId] = await Promise.all([
+      this.seasonIdForMicrocycle(currentMicrocycle),
+      this.seasonIdForMicrocycle(targetMicrocycle),
+    ]);
+    if (currentSeasonId !== targetSeasonId) {
+      throw new PlanningValidationError(
+        "Der Mikrozyklus gehört nicht zu derselben Saison.",
+      );
+    }
+    this.assertWithinMicrocycle(
+      targetMicrocycle,
+      values.startDate,
+      values.endDate,
+    );
+    return this.storage.put(
+      "microcycle_segments",
+      { ...segment, ...values },
+      {
+        expectedVersion: segment.version,
+        revision: this.revision(targetSeasonId),
+      },
+    );
+  }
+
+  async deleteMicrocycleSegment(segment: MicrocycleSegment): Promise<void> {
+    const microcycle = await this.requireMicrocycle(segment.microcycleId);
+    const seasonId = await this.seasonIdForMicrocycle(microcycle);
+    return this.storage.softDelete("microcycle_segments", segment.id, {
+      expectedVersion: segment.version,
+      revision: this.revision(seasonId),
+    });
+  }
+
+  async initializeStandardPeriodization(seasonId: string): Promise<void> {
+    const running = this.periodizationInitializations.get(seasonId);
+    if (running) return running;
+    const initialization = this.createStandardPeriodization(seasonId);
+    this.periodizationInitializations.set(seasonId, initialization);
+    try {
+      await initialization;
+    } catch (error) {
+      this.periodizationInitializations.delete(seasonId);
+      throw error;
+    }
+  }
+
+  private async createStandardPeriodization(seasonId: string): Promise<void> {
+    await this.requireSeason(seasonId);
+    if ((await this.listDimensions(seasonId)).length > 0) return;
+
+    const dimensions = new Map<string, PeriodizationDimension>();
+    for (const [sortOrder, name] of standardDimensions.entries()) {
+      const dimension = await this.createDimension(seasonId, {
+        name,
+        code: toCode(name),
+        description: "",
+        sortOrder,
+        active: true,
+      });
+      dimensions.set(name, dimension);
+    }
+    for (const [dimensionName, focuses] of Object.entries(standardFocuses)) {
+      const dimension = dimensions.get(dimensionName);
+      if (!dimension) continue;
+      for (const name of focuses) {
+        await this.createFocusDefinition(seasonId, {
+          dimensionId: dimension.id,
+          name,
+          code: toCode(name),
+          description: "",
+          active: true,
+        });
+      }
+    }
+  }
+
+  async listDimensions(seasonId: string): Promise<PeriodizationDimension[]> {
+    return (
+      await this.storage.list<PeriodizationDimension>(
+        "periodization_dimensions",
+      )
+    )
+      .filter((dimension) => dimension.seasonId === seasonId)
+      .sort(
+        (left, right) =>
+          left.sortOrder - right.sortOrder ||
+          left.name.localeCompare(right.name),
+      );
+  }
+
+  async createDimension(
+    seasonId: string,
+    input: PeriodizationDimensionInput,
+  ): Promise<PeriodizationDimension> {
+    await this.requireSeason(seasonId);
+    const values = periodizationDimensionInputSchema.parse(input);
+    await this.assertUniqueDimensionCode(seasonId, values.code);
+    return this.storage.put(
+      "periodization_dimensions",
+      { id: this.createId(), seasonId, ...values, version: 0 },
+      { expectedVersion: 0, revision: this.revision(seasonId) },
+    );
+  }
+
+  async updateDimension(
+    dimension: PeriodizationDimension,
+    input: PeriodizationDimensionInput,
+  ): Promise<PeriodizationDimension> {
+    const values = periodizationDimensionInputSchema.parse(input);
+    await this.requireSeason(dimension.seasonId);
+    await this.assertUniqueDimensionCode(
+      dimension.seasonId,
+      values.code,
+      dimension.id,
+    );
+    return this.storage.put(
+      "periodization_dimensions",
+      { ...dimension, ...values },
+      {
+        expectedVersion: dimension.version,
+        revision: this.revision(dimension.seasonId),
+      },
+    );
+  }
+
+  async deleteDimension(dimension: PeriodizationDimension): Promise<void> {
+    const [definitions, segments] = await Promise.all([
+      this.listFocusDefinitions(dimension.seasonId),
+      this.listFocusSegments(dimension.seasonId),
+    ]);
+    if (
+      definitions.some((item) => item.dimensionId === dimension.id) ||
+      segments.some((item) => item.dimensionId === dimension.id)
+    ) {
+      throw new PlanningValidationError(
+        "Eine Dimension mit Fokusdefinitionen oder Fokussegmenten kann nicht gelöscht werden.",
+      );
+    }
+    return this.storage.softDelete("periodization_dimensions", dimension.id, {
+      expectedVersion: dimension.version,
+      revision: this.revision(dimension.seasonId),
+    });
+  }
+
+  async listFocusDefinitions(seasonId: string): Promise<FocusDefinition[]> {
+    return (await this.storage.list<FocusDefinition>("focus_definitions"))
+      .filter((definition) => definition.seasonId === seasonId)
+      .sort((left, right) => left.name.localeCompare(right.name));
+  }
+
+  async createFocusDefinition(
+    seasonId: string,
+    input: FocusDefinitionInput,
+  ): Promise<FocusDefinition> {
+    await this.requireSeason(seasonId);
+    const values = focusDefinitionInputSchema.parse(input);
+    await this.requireDimension(seasonId, values.dimensionId);
+    await this.assertUniqueFocusCode(seasonId, values.dimensionId, values.code);
+    return this.storage.put(
+      "focus_definitions",
+      { id: this.createId(), seasonId, ...values, version: 0 },
+      { expectedVersion: 0, revision: this.revision(seasonId) },
+    );
+  }
+
+  async updateFocusDefinition(
+    definition: FocusDefinition,
+    input: FocusDefinitionInput,
+  ): Promise<FocusDefinition> {
+    const values = focusDefinitionInputSchema.parse(input);
+    await this.requireDimension(definition.seasonId, values.dimensionId);
+    if (values.dimensionId !== definition.dimensionId) {
+      const segments = await this.listFocusSegments(definition.seasonId);
+      if (segments.some((item) => item.focusDefinitionId === definition.id)) {
+        throw new PlanningValidationError(
+          "Ein verwendeter Fokus kann nicht in eine andere Dimension verschoben werden.",
+        );
+      }
+    }
+    await this.assertUniqueFocusCode(
+      definition.seasonId,
+      values.dimensionId,
+      values.code,
+      definition.id,
+    );
+    return this.storage.put(
+      "focus_definitions",
+      { ...definition, ...values },
+      {
+        expectedVersion: definition.version,
+        revision: this.revision(definition.seasonId),
+      },
+    );
+  }
+
+  async deleteFocusDefinition(definition: FocusDefinition): Promise<void> {
+    const segments = await this.listFocusSegments(definition.seasonId);
+    if (segments.some((item) => item.focusDefinitionId === definition.id)) {
+      throw new PlanningValidationError(
+        "Eine verwendete Fokusdefinition kann nicht gelöscht werden.",
+      );
+    }
+    return this.storage.softDelete("focus_definitions", definition.id, {
+      expectedVersion: definition.version,
+      revision: this.revision(definition.seasonId),
+    });
+  }
+
+  async listFocusSegments(seasonId: string): Promise<FocusSegment[]> {
+    return (await this.storage.list<FocusSegment>("focus_segments"))
+      .filter((segment) => segment.seasonId === seasonId)
+      .sort((left, right) => left.startDate.localeCompare(right.startDate));
+  }
+
+  async createFocusSegment(
+    seasonId: string,
+    input: FocusSegmentInput,
+  ): Promise<FocusSegment> {
+    const season = await this.requireSeason(seasonId);
+    const values = focusSegmentInputSchema.parse(input);
+    await this.requireFocusSelection(
+      seasonId,
+      values.dimensionId,
+      values.focusDefinitionId,
+    );
+    this.assertWithinSeason(season, values.startDate, values.endDate);
+    return this.storage.put(
+      "focus_segments",
+      { id: this.createId(), seasonId, ...values, version: 0 },
+      { expectedVersion: 0, revision: this.revision(seasonId) },
+    );
+  }
+
+  async updateFocusSegment(
+    segment: FocusSegment,
+    input: FocusSegmentInput,
+  ): Promise<FocusSegment> {
+    const season = await this.requireSeason(segment.seasonId);
+    const values = focusSegmentInputSchema.parse(input);
+    await this.requireFocusSelection(
+      segment.seasonId,
+      values.dimensionId,
+      values.focusDefinitionId,
+    );
+    this.assertWithinSeason(season, values.startDate, values.endDate);
+    return this.storage.put(
+      "focus_segments",
+      { ...segment, ...values },
+      {
+        expectedVersion: segment.version,
+        revision: this.revision(segment.seasonId),
+      },
+    );
+  }
+
+  deleteFocusSegment(segment: FocusSegment): Promise<void> {
+    return this.storage.softDelete("focus_segments", segment.id, {
+      expectedVersion: segment.version,
+      revision: this.revision(segment.seasonId),
+    });
+  }
+
   private async requireSeason(seasonId: string): Promise<Season> {
     const season = await this.storage.get<Season>("seasons", seasonId);
     if (!season)
       throw new PlanningValidationError("Saison wurde nicht gefunden.");
     return season;
+  }
+
+  private async requireDimension(
+    seasonId: string,
+    dimensionId: string,
+  ): Promise<PeriodizationDimension> {
+    const dimension = await this.storage.get<PeriodizationDimension>(
+      "periodization_dimensions",
+      dimensionId,
+    );
+    if (!dimension || dimension.seasonId !== seasonId) {
+      throw new PlanningValidationError(
+        "Die Dimension gehört nicht zu dieser Saison.",
+      );
+    }
+    return dimension;
+  }
+
+  private async requireFocusSelection(
+    seasonId: string,
+    dimensionId: string,
+    definitionId: string,
+  ): Promise<void> {
+    const [dimension, definition] = await Promise.all([
+      this.requireDimension(seasonId, dimensionId),
+      this.storage.get<FocusDefinition>("focus_definitions", definitionId),
+    ]);
+    if (
+      !dimension.active ||
+      !definition ||
+      !definition.active ||
+      definition.seasonId !== seasonId ||
+      definition.dimensionId !== dimensionId
+    ) {
+      throw new PlanningValidationError(
+        "Der Fokus gehört nicht zur gewählten aktiven Dimension.",
+      );
+    }
+  }
+
+  private async assertUniqueDimensionCode(
+    seasonId: string,
+    code: string,
+    ignoredId?: string,
+  ): Promise<void> {
+    const dimensions = await this.listDimensions(seasonId);
+    if (
+      dimensions.some((item) => item.id !== ignoredId && item.code === code)
+    ) {
+      throw new PlanningValidationError(
+        "Der Dimensionscode ist in dieser Saison bereits vergeben.",
+      );
+    }
+  }
+
+  private async assertUniqueFocusCode(
+    seasonId: string,
+    dimensionId: string,
+    code: string,
+    ignoredId?: string,
+  ): Promise<void> {
+    const definitions = await this.listFocusDefinitions(seasonId);
+    if (
+      definitions.some(
+        (item) =>
+          item.id !== ignoredId &&
+          item.dimensionId === dimensionId &&
+          item.code === code,
+      )
+    ) {
+      throw new PlanningValidationError(
+        "Der Fokuscode ist in dieser Dimension bereits vergeben.",
+      );
+    }
   }
 
   private async requireTrack(
@@ -432,6 +848,35 @@ export class SeasonPlanningService {
     return mesocycle;
   }
 
+  private async requireMicrocycle(microcycleId: string): Promise<Microcycle> {
+    const microcycle = await this.storage.get<Microcycle>(
+      "microcycles",
+      microcycleId,
+    );
+    if (!microcycle) {
+      throw new PlanningValidationError("Mikrozyklus wurde nicht gefunden.");
+    }
+    return microcycle;
+  }
+
+  private async seasonIdForMicrocycle(microcycle: Microcycle): Promise<string> {
+    const mesocycle = await this.requireMesocycle(microcycle.mesocycleId);
+    const macrocycle = await this.requireMacrocycle(mesocycle.macrocycleId);
+    return macrocycle.seasonId;
+  }
+
+  private assertWithinMicrocycle(
+    microcycle: Microcycle,
+    startDate: string,
+    endDate: string,
+  ): void {
+    if (startDate < microcycle.startDate || endDate > microcycle.endDate) {
+      throw new PlanningValidationError(
+        "Der Zeitraum muss vollständig innerhalb des Mikrozyklus liegen.",
+      );
+    }
+  }
+
   private assertWithinMesocycle(
     mesocycle: Mesocycle,
     startDate: string,
@@ -475,4 +920,11 @@ export class SeasonPlanningService {
   private revision(seasonId: string) {
     return { seasonId, editorLabel: "public" };
   }
+}
+
+function toCode(value: string): string {
+  return value
+    .toUpperCase()
+    .replace(/[^A-Z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
 }

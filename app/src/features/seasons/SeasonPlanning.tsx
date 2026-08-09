@@ -15,9 +15,13 @@ import type {
   CalendarConstraint,
   Event,
   EventTrack,
+  FocusDefinition,
+  FocusSegment,
   Macrocycle,
   Mesocycle,
   Microcycle,
+  MicrocycleSegment,
+  PeriodizationDimension,
   Season,
 } from "../../lib/domain/types";
 import type { StorageAdapter } from "../../lib/storage/StorageAdapter";
@@ -28,13 +32,16 @@ import {
   macrocycleInputSchema,
   mesocycleInputSchema,
   microcycleInputSchema,
+  microcycleSegmentInputSchema,
   type CalendarConstraintInput,
   type EventInput,
   type EventTrackInput,
   type MacrocycleInput,
   type MesocycleInput,
   type MicrocycleInput,
+  type MicrocycleSegmentInput,
 } from "../../lib/validation/domain";
+import { PeriodizationManagement } from "./PeriodizationManagement";
 
 const blankTrack: EventTrackInput = { name: "", sortOrder: 0, visible: true };
 const blankEvent: EventInput = {
@@ -81,6 +88,14 @@ const blankMicrocycle: MicrocycleInput = {
   targetRpe: 5,
   targetVolumeMeters: undefined,
 };
+const blankMicrocycleSegment: MicrocycleSegmentInput = {
+  microcycleId: "",
+  name: "",
+  startDate: "",
+  endDate: "",
+  segmentType: "",
+  sortOrder: 0,
+};
 
 export function SeasonPlanning({
   season,
@@ -96,6 +111,14 @@ export function SeasonPlanning({
   const [macrocycles, setMacrocycles] = useState<Macrocycle[]>([]);
   const [mesocycles, setMesocycles] = useState<Mesocycle[]>([]);
   const [microcycles, setMicrocycles] = useState<Microcycle[]>([]);
+  const [microcycleSegments, setMicrocycleSegments] = useState<
+    MicrocycleSegment[]
+  >([]);
+  const [dimensions, setDimensions] = useState<PeriodizationDimension[]>([]);
+  const [focusDefinitions, setFocusDefinitions] = useState<FocusDefinition[]>(
+    [],
+  );
+  const [focusSegments, setFocusSegments] = useState<FocusSegment[]>([]);
   const [notice, setNotice] = useState("");
 
   async function reload() {
@@ -106,6 +129,10 @@ export function SeasonPlanning({
       nextMacrocycles,
       nextMesocycles,
       nextMicrocycles,
+      nextMicrocycleSegments,
+      nextDimensions,
+      nextFocusDefinitions,
+      nextFocusSegments,
     ] = await Promise.all([
       service.listTracks(season.id),
       service.listEvents(season.id),
@@ -113,6 +140,10 @@ export function SeasonPlanning({
       service.listMacrocycles(season.id),
       service.listMesocycles(season.id),
       service.listMicrocycles(season.id),
+      service.listMicrocycleSegments(season.id),
+      service.listDimensions(season.id),
+      service.listFocusDefinitions(season.id),
+      service.listFocusSegments(season.id),
     ]);
     setTracks(nextTracks);
     setEvents(nextEvents);
@@ -120,35 +151,56 @@ export function SeasonPlanning({
     setMacrocycles(nextMacrocycles);
     setMesocycles(nextMesocycles);
     setMicrocycles(nextMicrocycles);
+    setMicrocycleSegments(nextMicrocycleSegments);
+    setDimensions(nextDimensions);
+    setFocusDefinitions(nextFocusDefinitions);
+    setFocusSegments(nextFocusSegments);
   }
 
   useEffect(() => {
     let active = true;
-    void Promise.all([
-      service.listTracks(season.id),
-      service.listEvents(season.id),
-      service.listConstraints(season.id),
-      service.listMacrocycles(season.id),
-      service.listMesocycles(season.id),
-      service.listMicrocycles(season.id),
-    ]).then(
-      ([
-        nextTracks,
-        nextEvents,
-        nextConstraints,
-        nextMacrocycles,
-        nextMesocycles,
-        nextMicrocycles,
-      ]) => {
-        if (!active) return;
-        setTracks(nextTracks);
-        setEvents(nextEvents);
-        setConstraints(nextConstraints);
-        setMacrocycles(nextMacrocycles);
-        setMesocycles(nextMesocycles);
-        setMicrocycles(nextMicrocycles);
-      },
-    );
+    void service
+      .initializeStandardPeriodization(season.id)
+      .then(() =>
+        Promise.all([
+          service.listTracks(season.id),
+          service.listEvents(season.id),
+          service.listConstraints(season.id),
+          service.listMacrocycles(season.id),
+          service.listMesocycles(season.id),
+          service.listMicrocycles(season.id),
+          service.listMicrocycleSegments(season.id),
+          service.listDimensions(season.id),
+          service.listFocusDefinitions(season.id),
+          service.listFocusSegments(season.id),
+        ]),
+      )
+      .then(
+        ([
+          nextTracks,
+          nextEvents,
+          nextConstraints,
+          nextMacrocycles,
+          nextMesocycles,
+          nextMicrocycles,
+          nextMicrocycleSegments,
+          nextDimensions,
+          nextFocusDefinitions,
+          nextFocusSegments,
+        ]) => {
+          if (!active) return;
+          setTracks(nextTracks);
+          setEvents(nextEvents);
+          setConstraints(nextConstraints);
+          setMacrocycles(nextMacrocycles);
+          setMesocycles(nextMesocycles);
+          setMicrocycles(nextMicrocycles);
+          setMicrocycleSegments(nextMicrocycleSegments);
+          setDimensions(nextDimensions);
+          setFocusDefinitions(nextFocusDefinitions);
+          setFocusSegments(nextFocusSegments);
+        },
+      );
     return () => {
       active = false;
     };
@@ -216,7 +268,192 @@ export function SeasonPlanning({
         onChange={reload}
         onNotice={setNotice}
       />
+      <MicrocycleSegmentSection
+        segments={microcycleSegments}
+        microcycles={microcycles}
+        service={service}
+        seasonId={season.id}
+        onChange={reload}
+        onNotice={setNotice}
+      />
+      <PeriodizationManagement
+        seasonId={season.id}
+        dimensions={dimensions}
+        focusDefinitions={focusDefinitions}
+        focusSegments={focusSegments}
+        service={service}
+        onChange={reload}
+        onNotice={setNotice}
+      />
     </section>
+  );
+}
+
+function MicrocycleSegmentSection({
+  segments,
+  microcycles,
+  service,
+  onChange,
+  onNotice,
+}: SectionProps & {
+  segments: MicrocycleSegment[];
+  microcycles: Microcycle[];
+}) {
+  const [form, setForm] = useState<MicrocycleSegmentInput>(
+    blankMicrocycleSegment,
+  );
+  const [editing, setEditing] = useState<MicrocycleSegment | null>(null);
+  const [errors, setErrors] = useState<Record<string, string>>({});
+
+  async function submit(event: FormEvent) {
+    event.preventDefault();
+    const parsed = microcycleSegmentInputSchema.safeParse(form);
+    if (!parsed.success) return setErrors(fieldErrors(parsed.error));
+    try {
+      if (editing) await service.updateMicrocycleSegment(editing, parsed.data);
+      else await service.createMicrocycleSegment(parsed.data);
+      onNotice(
+        editing
+          ? "Mikrozyklussegment wurde aktualisiert."
+          : "Mikrozyklussegment wurde angelegt.",
+      );
+      setEditing(null);
+      setForm(blankMicrocycleSegment);
+      setErrors({});
+      await onChange();
+    } catch (error) {
+      setErrors({ form: errorMessage(error) });
+    }
+  }
+
+  function edit(segment: MicrocycleSegment) {
+    setEditing(segment);
+    setForm({
+      microcycleId: segment.microcycleId,
+      name: segment.name,
+      startDate: segment.startDate,
+      endDate: segment.endDate,
+      segmentType: segment.segmentType,
+      sortOrder: segment.sortOrder,
+    });
+    setErrors({});
+  }
+
+  async function remove(segment: MicrocycleSegment) {
+    try {
+      await service.deleteMicrocycleSegment(segment);
+      onNotice("Mikrozyklussegment wurde gelöscht.");
+      await onChange();
+    } catch (error) {
+      onNotice(errorMessage(error));
+    }
+  }
+
+  return (
+    <PlanningSection title="Mikrozyklussegmente" count={segments.length}>
+      {microcycles.length === 0 ? (
+        <p className="hint">Lege zuerst einen Mikrozyklus an.</p>
+      ) : (
+        <form className="entity-form" onSubmit={submit} noValidate>
+          <Field label="Mikrozyklus" error={errors.microcycleId}>
+            <select
+              value={form.microcycleId}
+              onChange={(e) =>
+                setForm({ ...form, microcycleId: e.target.value })
+              }
+            >
+              <option value="">Bitte wählen</option>
+              {microcycles.map((microcycle) => (
+                <option key={microcycle.id} value={microcycle.id}>
+                  {microcycle.name}
+                </option>
+              ))}
+            </select>
+          </Field>
+          <Field label="Name" error={errors.name}>
+            <input
+              value={form.name}
+              onChange={(e) => setForm({ ...form, name: e.target.value })}
+            />
+          </Field>
+          <Field label="Startdatum" error={errors.startDate}>
+            <input
+              type="date"
+              value={form.startDate}
+              onChange={(e) => setForm({ ...form, startDate: e.target.value })}
+            />
+          </Field>
+          <Field label="Enddatum" error={errors.endDate}>
+            <input
+              type="date"
+              value={form.endDate}
+              onChange={(e) => setForm({ ...form, endDate: e.target.value })}
+            />
+          </Field>
+          <Field label="Typ" error={errors.segmentType}>
+            <input
+              value={form.segmentType}
+              onChange={(e) =>
+                setForm({ ...form, segmentType: e.target.value })
+              }
+            />
+          </Field>
+          <Field label="Reihenfolge" error={errors.sortOrder}>
+            <input
+              type="number"
+              min="0"
+              step="1"
+              value={form.sortOrder}
+              onChange={(e) =>
+                setForm({ ...form, sortOrder: Number(e.target.value) })
+              }
+            />
+          </Field>
+          {errors.form && (
+            <p className="field-error form-error">{errors.form}</p>
+          )}
+          <div className="entity-actions">
+            <button className="button primary" type="submit">
+              {editing
+                ? "Mikrozyklussegment speichern"
+                : "Mikrozyklussegment anlegen"}
+            </button>
+            {editing && (
+              <button
+                className="button quiet"
+                type="button"
+                onClick={() => {
+                  setEditing(null);
+                  setForm(blankMicrocycleSegment);
+                }}
+              >
+                Abbrechen
+              </button>
+            )}
+          </div>
+        </form>
+      )}
+      <div className="item-list">
+        {segments.map((segment) => (
+          <article className="planning-item" key={segment.id}>
+            <div>
+              <strong>{segment.name}</strong>
+              <span>
+                {microcycleName(microcycles, segment.microcycleId)} ·{" "}
+                {formatDate(segment.startDate)} – {formatDate(segment.endDate)}
+              </span>
+              <span>
+                {segment.segmentType} · Reihenfolge {segment.sortOrder}
+              </span>
+            </div>
+            <ItemActions
+              onEdit={() => edit(segment)}
+              onDelete={() => void remove(segment)}
+            />
+          </article>
+        ))}
+      </div>
+    </PlanningSection>
   );
 }
 
@@ -1242,6 +1479,13 @@ function mesocycleName(mesocycles: Mesocycle[], id: string): string {
   return (
     mesocycles.find((mesocycle) => mesocycle.id === id)?.name ??
     "Unbekannter Mesozyklus"
+  );
+}
+
+function microcycleName(microcycles: Microcycle[], id: string): string {
+  return (
+    microcycles.find((microcycle) => microcycle.id === id)?.name ??
+    "Unbekannter Mikrozyklus"
   );
 }
 

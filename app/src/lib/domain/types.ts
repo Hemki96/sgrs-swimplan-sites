@@ -95,7 +95,7 @@ export interface MicrocycleSegment extends SoftDeletableEntity {
   sortOrder: number;
 }
 
-export interface PeriodizationDimension extends VersionedEntity {
+export interface PeriodizationDimension extends SoftDeletableEntity {
   seasonId: Id;
   name: string;
   code: string;
@@ -104,7 +104,7 @@ export interface PeriodizationDimension extends VersionedEntity {
   active: boolean;
 }
 
-export interface FocusDefinition extends VersionedEntity {
+export interface FocusDefinition extends SoftDeletableEntity {
   seasonId: Id;
   dimensionId: Id;
   name: string;

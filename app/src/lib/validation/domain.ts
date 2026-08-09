@@ -126,6 +126,73 @@ export const microcycleInputSchema = datedEntitySchema
 
 export type MicrocycleInput = z.infer<typeof microcycleInputSchema>;
 
+export const microcycleSegmentInputSchema = datedEntitySchema
+  .extend({
+    microcycleId: z.string().trim().min(1, "Mikrozyklus ist erforderlich."),
+    segmentType: z.string().trim().min(1, "Typ ist erforderlich."),
+    sortOrder: z
+      .number()
+      .int("Reihenfolge muss eine ganze Zahl sein.")
+      .min(0, "Reihenfolge muss mindestens 0 sein."),
+  })
+  .refine(({ startDate, endDate }) => startDate <= endDate, {
+    message: "Das Startdatum muss vor oder am Enddatum liegen.",
+    path: ["endDate"],
+  });
+
+export type MicrocycleSegmentInput = z.infer<
+  typeof microcycleSegmentInputSchema
+>;
+
+const codeSchema = z
+  .string()
+  .trim()
+  .min(1, "Code ist erforderlich.")
+  .regex(
+    /^[A-Z][A-Z0-9_]*$/,
+    "Code darf nur Großbuchstaben, Zahlen und Unterstriche enthalten.",
+  );
+
+export const periodizationDimensionInputSchema = z.object({
+  name: z.string().trim().min(1, "Name ist erforderlich."),
+  code: codeSchema,
+  description: z.string().trim(),
+  sortOrder: z
+    .number()
+    .int("Reihenfolge muss eine ganze Zahl sein.")
+    .min(0, "Reihenfolge muss mindestens 0 sein."),
+  active: z.boolean(),
+});
+
+export type PeriodizationDimensionInput = z.infer<
+  typeof periodizationDimensionInputSchema
+>;
+
+export const focusDefinitionInputSchema = z.object({
+  dimensionId: z.string().trim().min(1, "Dimension ist erforderlich."),
+  name: z.string().trim().min(1, "Fokus ist erforderlich."),
+  code: codeSchema,
+  description: z.string().trim(),
+  active: z.boolean(),
+});
+
+export type FocusDefinitionInput = z.infer<typeof focusDefinitionInputSchema>;
+
+export const focusSegmentInputSchema = z
+  .object({
+    dimensionId: z.string().trim().min(1, "Dimension ist erforderlich."),
+    focusDefinitionId: z.string().trim().min(1, "Fokus ist erforderlich."),
+    startDate: z.string().regex(isoDate, "Startdatum ist erforderlich."),
+    endDate: z.string().regex(isoDate, "Enddatum ist erforderlich."),
+    notes: z.string().trim(),
+  })
+  .refine(({ startDate, endDate }) => startDate <= endDate, {
+    message: "Das Startdatum muss vor oder am Enddatum liegen.",
+    path: ["endDate"],
+  });
+
+export type FocusSegmentInput = z.infer<typeof focusSegmentInputSchema>;
+
 export function assertRpe(v: number | undefined) {
   if (v === undefined) return;
   if (!Number.isInteger(v) || v < 1 || v > 10)
