@@ -12,6 +12,12 @@ import {
 } from "../../lib/domain/types";
 import { downloadJsonExport } from "../../lib/export/jsonExport";
 import {
+  buildExcelImportSnapshot,
+  parseExcelWorkbook,
+  type ExcelImportPreview,
+} from "../../lib/excel/excelImport";
+import { downloadExcelExport } from "../../lib/excel/excelExport";
+import {
   buildImportSnapshot,
   parseImport,
   type ImportPreview,
@@ -43,6 +49,10 @@ export function SettingsPage({
   const [editing, setEditing] = useState<ConfigurationValue | null>(null);
   const [preview, setPreview] = useState<ImportPreview | null>(null);
   const [selectedSeason, setSelectedSeason] = useState("");
+  const [excelPreview, setExcelPreview] = useState<ExcelImportPreview | null>(
+    null,
+  );
+  const [selectedSheet, setSelectedSheet] = useState("");
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
 
@@ -108,6 +118,39 @@ export function SettingsPage({
     const next = parseImport(await file.text());
     setPreview(next);
     setSelectedSeason(next.selectedSeasonId ?? "");
+  }
+
+  async function chooseExcelFile(file?: File) {
+    if (!file) return;
+    const next = parseExcelWorkbook(await file.arrayBuffer());
+    setExcelPreview(next);
+    const importable = next.sheets.find(
+      (sheet) => sheet.errors.length === 0 && sheet.weeks.length > 0,
+    );
+    setSelectedSheet(importable?.name ?? next.sheets[0]?.name ?? "");
+  }
+
+  async function confirmExcelImport() {
+    if (!excelPreview) return;
+    const sheet = excelPreview.sheets.find(
+      (candidate) => candidate.name === selectedSheet,
+    );
+    if (!sheet || sheet.errors.length) return;
+    setBusy(true);
+    try {
+      const { snapshot, warnings } = buildExcelImportSnapshot(sheet);
+      await storage.applyImport(snapshot);
+      setExcelPreview(null);
+      setMessage(
+        warnings.length
+          ? `Saison importiert. ${warnings[0]}`
+          : "Saison wurde als neue Planung importiert.",
+      );
+    } catch {
+      setMessage("Import wurde ohne Änderungen abgebrochen.");
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function confirmImport() {
@@ -274,6 +317,96 @@ export function SettingsPage({
             />
           </label>
         </div>
+        <div className="settings-actions">
+          <button
+            className="button"
+            onClick={() =>
+              void downloadExcelExport(storage).catch(() =>
+                setMessage("Excel-Export fehlgeschlagen."),
+              )
+            }
+          >
+            Excel-Export
+          </button>
+          <label className="button primary file-button">
+            Excel-Datei prüfen
+            <input
+              type="file"
+              accept=".xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
+              onChange={(event) =>
+                void chooseExcelFile(event.target.files?.[0])
+              }
+            />
+          </label>
+        </div>
+        {excelPreview && (
+          <div className="import-preview">
+            <h3>Excel-Importvorschau</h3>
+            {excelPreview.errors.map((error) => (
+              <p className="field-error" key={error}>
+                {error}
+              </p>
+            ))}
+            {excelPreview.sheets.length ? (
+              <label className="field">
+                <span>Zu importierendes Blatt</span>
+                <select
+                  value={selectedSheet}
+                  onChange={(event) => setSelectedSheet(event.target.value)}
+                >
+                  {excelPreview.sheets.map((sheet) => (
+                    <option
+                      value={sheet.name}
+                      key={sheet.name}
+                      disabled={sheet.errors.length > 0}
+                    >
+                      {sheet.name}
+                      {sheet.errors.length ? " (ungültig)" : ""}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ) : null}
+            {(() => {
+              const sheet = excelPreview.sheets.find(
+                (candidate) => candidate.name === selectedSheet,
+              );
+              if (!sheet) return null;
+              return (
+                <>
+                  {sheet.errors.map((error) => (
+                    <p className="field-error" key={error}>
+                      {error}
+                    </p>
+                  ))}
+                  {sheet.warnings.map((warning) => (
+                    <p className="notice" key={warning}>
+                      {warning}
+                    </p>
+                  ))}
+                  {sheet.errors.length === 0 && (
+                    <>
+                      <p>
+                        Zeitraum {sheet.startDate} – {sheet.endDate} ·{" "}
+                        {Object.entries(sheet.counts)
+                          .map(([label, count]) => `${count} ${label}`)
+                          .join(" · ")}
+                      </p>
+                      <p>Die Saison und alle Beziehungen erhalten neue IDs.</p>
+                      <button
+                        className="button primary"
+                        disabled={busy}
+                        onClick={() => void confirmExcelImport()}
+                      >
+                        Import verbindlich anwenden
+                      </button>
+                    </>
+                  )}
+                </>
+              );
+            })()}
+          </div>
+        )}
         {preview && (
           <div className="import-preview">
             <h3>Importvorschau</h3>

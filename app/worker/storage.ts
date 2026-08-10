@@ -1,4 +1,6 @@
 import { buildJsonExport } from "../src/lib/export/jsonExport";
+import type { StorageCollection } from "../src/lib/storage/StorageAdapter";
+import { importSeasonScope } from "../src/lib/storage/importScope";
 
 export interface D1Result<T = unknown> {
   results?: T[];
@@ -172,10 +174,16 @@ async function putEntity(
           next.deletedAt ?? null,
           JSON.stringify(next),
         );
-  const revisionWrite = db
+  const writeResult = await write.run();
+  if ((writeResult.meta.changes ?? 0) !== 1) {
+    return conflict(
+      expected ?? 0,
+      (await currentEntity(db, collection, entity.id))?.version ?? null,
+    );
+  }
+  await db
     .prepare(
-      `INSERT INTO storage_entities
-      (collection, id, season_id, version, deleted_at, data)
+      `INSERT INTO storage_entities (collection, id, season_id, version, deleted_at, data)
       SELECT 'revisions', ?, ?, NULL, NULL,
         json_set(?, '$.revisionNumber', COALESCE((SELECT MAX(CAST(json_extract(data, '$.revisionNumber') AS INTEGER))
           FROM storage_entities WHERE collection = 'revisions' AND season_id = ?), 0) + 1)
@@ -189,14 +197,8 @@ async function putEntity(
       collection,
       next.id,
       next.version,
-    );
-  const [writeResult] = await db.batch([write, revisionWrite]);
-  if ((writeResult.meta.changes ?? 0) !== 1) {
-    return conflict(
-      expected ?? 0,
-      (await currentEntity(db, collection, entity.id))?.version ?? null,
-    );
-  }
+    )
+    .run();
   return json(next);
 }
 
@@ -230,44 +232,44 @@ async function softDeleteEntity(
     afterJson: next,
     editorLabel: options.revision?.editorLabel,
   };
-  const [writeResult] = await db.batch([
-    db
-      .prepare(
-        `UPDATE storage_entities SET version = ?, deleted_at = ?, data = ?
+  const writeResult = await db
+    .prepare(
+      `UPDATE storage_entities SET version = ?, deleted_at = ?, data = ?
       WHERE collection = ? AND id = ? AND version = ?`,
-      )
-      .bind(
-        next.version,
-        timestamp,
-        JSON.stringify(next),
-        collection,
-        id,
-        options.expectedVersion,
-      ),
-    db
-      .prepare(
-        `INSERT INTO storage_entities (collection, id, season_id, version, deleted_at, data)
-      SELECT 'revisions', ?, ?, NULL, NULL,
-        json_set(?, '$.revisionNumber', COALESCE((SELECT MAX(CAST(json_extract(data, '$.revisionNumber') AS INTEGER))
-          FROM storage_entities WHERE collection = 'revisions' AND season_id = ?), 0) + 1)
-      WHERE EXISTS (SELECT 1 FROM storage_entities WHERE collection = ? AND id = ? AND version = ?)`,
-      )
-      .bind(
-        revision.id,
-        seasonId,
-        JSON.stringify(revision),
-        seasonId,
-        collection,
-        id,
-        next.version,
-      ),
-  ]);
+    )
+    .bind(
+      next.version,
+      timestamp,
+      JSON.stringify(next),
+      collection,
+      id,
+      options.expectedVersion,
+    )
+    .run();
   if ((writeResult.meta.changes ?? 0) !== 1) {
     return conflict(
       options.expectedVersion,
       (await currentEntity(db, collection, id))?.version ?? null,
     );
   }
+  await db
+    .prepare(
+      `INSERT INTO storage_entities (collection, id, season_id, version, deleted_at, data)
+      SELECT 'revisions', ?, ?, NULL, NULL,
+        json_set(?, '$.revisionNumber', COALESCE((SELECT MAX(CAST(json_extract(data, '$.revisionNumber') AS INTEGER))
+          FROM storage_entities WHERE collection = 'revisions' AND season_id = ?), 0) + 1)
+      WHERE EXISTS (SELECT 1 FROM storage_entities WHERE collection = ? AND id = ? AND version = ?)`,
+    )
+    .bind(
+      revision.id,
+      seasonId,
+      JSON.stringify(revision),
+      seasonId,
+      collection,
+      id,
+      next.version,
+    )
+    .run();
   return new Response(null, { status: 204 });
 }
 
@@ -350,13 +352,12 @@ export async function storageRequest(
     for (const [name, entities] of Object.entries(snapshot)) {
       if (!collections.has(name) || name === "revisions") continue;
       for (const entity of entities ?? []) {
-        const scope =
-          name === "configuration_values"
-            ? "__global_configuration__"
-            : name === "seasons"
-              ? entity.id
-              : entity.seasonId;
-        if (!scope || typeof scope !== "string")
+        const scope = importSeasonScope(
+          snapshot,
+          name as StorageCollection,
+          entity as Record<string, unknown>,
+        );
+        if (!scope)
           return json({ error: `Missing season scope for ${name}` }, 400);
         const current = await currentEntity(env.DB, name, entity.id);
         if (current && current.version !== entity.version)

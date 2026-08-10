@@ -48,7 +48,7 @@ export async function downloadJsonExport(
   URL.revokeObjectURL(url);
 }
 
-function seasonRangeLabel(seasons: Season[]) {
+export function seasonRangeLabel(seasons: Season[]) {
   const ranges = new Set(
     seasons
       .filter((season) => !season.deletedAt)

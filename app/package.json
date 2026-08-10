@@ -20,6 +20,7 @@
     "drizzle-orm": "0.45.2",
     "react": "19.2.6",
     "react-dom": "19.2.6",
+    "xlsx": "^0.18.5",
     "zod": "^4.0.0"
   },
   "devDependencies": {
@@ -31,18 +32,18 @@
     "@types/react-dom": "19.2.3",
     "@vitejs/plugin-react": "6.0.2",
     "@vitejs/plugin-rsc": "0.5.26",
+    "drizzle-kit": "0.31.10",
     "eslint": "9.39.4",
     "eslint-plugin-react-hooks": "^7.1.1",
     "eslint-plugin-react-refresh": "^0.5.3",
     "globals": "^17.9.0",
     "prettier": "^3.9.6",
+    "react-server-dom-webpack": "19.2.6",
     "typescript": "^5.9.0",
     "typescript-eslint": "^8.66.0",
-    "drizzle-kit": "0.31.10",
-    "react-server-dom-webpack": "19.2.6",
     "vinext": "1.0.0-beta.2",
     "vite": "8.0.13",
-    "wrangler": "4.92.0",
-    "vitest": "^3.2.0"
+    "vitest": "^3.2.0",
+    "wrangler": "4.92.0"
   }
 }

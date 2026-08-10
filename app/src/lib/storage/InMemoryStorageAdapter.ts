@@ -9,6 +9,7 @@ import type {
   StoredEntity,
 } from "./StorageAdapter";
 import { GLOBAL_REVISION_SCOPE_ID } from "./StorageAdapter";
+import { importSeasonScope } from "./importScope";
 
 type MutableCollection = Map<Id, unknown>;
 type MutableStore = Map<StorageCollection, MutableCollection>;
@@ -171,12 +172,11 @@ export class InMemoryStorageAdapter implements StorageAdapter {
             {
               expectedVersion: stored.version,
               revision: {
-                seasonId:
-                  collection === "configuration_values"
-                    ? GLOBAL_REVISION_SCOPE_ID
-                    : collection === "seasons"
-                      ? stored.id
-                      : stored.seasonId!,
+                seasonId: importSeasonScope(
+                  snapshot,
+                  collection as StorageCollection,
+                  { ...stored },
+                ) as string,
                 editorLabel: "json-import",
               },
             },

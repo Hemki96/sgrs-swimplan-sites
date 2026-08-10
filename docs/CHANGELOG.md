@@ -1,5 +1,21 @@
 # Changelog
 
+## 2026-08-10 – Mobile Today & Session Card (ExecPlan 007)
+
+- Mobile Startansicht „Heute“ (M1): `TodayView` mit Meso-/Mikrozyklus-Summary,
+  Target RPE, Wochenziel, Day Context, Sessions, nächstem Wettkampf sowie
+  Ausrüstung und Hinweisen; Tagesdaten dedupliziert über das `todayViewModel`
+  abgeleitet.
+- Session Card (M3): `SessionCard` als fokussierbare, barrierefreie Karte mit
+  Zeit, Titel, Dauer, Umfang, RPE und Fokus; Klick öffnet den `SessionEditor`
+  in der Heute-Ansicht.
+- Tag-/Woche-Navigation (`MobileWeekPlanning`) mit `tablist`/`aria-selected`-
+  Semantik; alle Mutationspfade über `SeasonPlanningService`/`StorageAdapter`.
+- Verifikation: kein horizontaler Überlauf bei 320 px und 390 px; Quality Gate
+  grün mit 92 Unit-Tests und 13 Chrome-E2E-Tests (inkl. Responsive 320–1440 px).
+- ExecPlan 007 abgeschlossen: M1/M3 nachträglich bestätigt; M4 Navigation bleibt
+  wie dokumentiert ExecPlan 012 überlassen.
+
 ## 2026-08-10 – History & Recovery (ExecPlan 006)
 
 - Neuer Tab „Historie“ in der Planungs-Shell mit Revisionsliste (neueste zuerst),
