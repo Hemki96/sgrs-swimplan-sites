@@ -9,7 +9,24 @@ const seasonNames = {
   meso: `Meso-Saison ${runId}`,
   micro: `Mikro-Saison ${runId}`,
   persistence: `Persistente Saison ${runId}`,
+  history: `Historie-Saison ${runId}`,
+  matrix: `Matrix-Saison ${runId}`,
 };
+
+async function createSeason(
+  page: import("@playwright/test").Page,
+  name: string,
+) {
+  await page.goto("/");
+  await page.getByRole("button", { name: "Neue Saison" }).click();
+  await page.getByLabel("Name").fill(name);
+  await page.getByLabel("Startdatum").fill("2026-08-01");
+  await page.getByLabel("Enddatum").fill("2027-07-31");
+  await page.getByLabel("Beschreibung").fill("Gemeinsame Planung");
+  await page.getByLabel("Hauptziel").fill("Meisterschaft");
+  await page.getByRole("button", { name: "Saison speichern" }).click();
+  await expect(page.getByRole("heading", { level: 1, name })).toBeVisible();
+}
 
 async function openPlanningData(
   page: import("@playwright/test").Page,
@@ -466,6 +483,7 @@ test("persists after reload and exposes matrix, week, mobile and JSON export", a
 
   await page.setViewportSize({ width: 390, height: 844 });
   await page.getByRole("tab", { name: "Woche" }).click();
+  await page.getByRole("tab", { name: "Diese Woche" }).click();
   await expect(page.locator(".week-view")).toBeVisible();
   await expect(page.locator(".planning-app")).toHaveCSS("width", "390px");
 
@@ -502,4 +520,168 @@ test("shows planning analytics on desktop and mobile", async ({ page }) => {
   expect(
     await page.evaluate(() => document.documentElement.scrollWidth),
   ).toBeLessThanOrEqual(390);
+});
+
+test("edits the season matrix: blocks, dialogs and inline RPE", async ({
+  page,
+}) => {
+  await createSeason(page, seasonNames.matrix);
+  await page.getByRole("tab", { name: "Matrix" }).click();
+  await expect(
+    page.getByRole("heading", { name: "Saisonmatrix" }),
+  ).toBeVisible();
+
+  const matrixRow = (row: string) => page.locator(`[data-matrix-row="${row}"]`);
+
+  await matrixRow("constraints")
+    .getByRole("button", { name: "Eintrag anlegen in Restriktionen" })
+    .click();
+  let dialog = page.getByRole("dialog");
+  await dialog.getByLabel("Name").fill("Sommerferien");
+  await dialog.getByLabel("Startdatum").fill("2026-08-01");
+  await dialog.getByLabel("Enddatum").fill("2026-08-15");
+  await dialog.getByRole("button", { name: "Restriktion anlegen" }).click();
+  await expect(page.getByText("Restriktion wurde angelegt.")).toBeVisible();
+  await expect(
+    matrixRow("constraints").getByText("Sommerferien", { exact: true }),
+  ).toBeVisible();
+
+  await matrixRow("constraints").getByText("Sommerferien").click();
+  dialog = page.getByRole("dialog");
+  await dialog.getByLabel("Name").fill("Sommerpause");
+  await dialog.getByRole("button", { name: "Restriktion speichern" }).click();
+  await expect(page.getByText("Restriktion wurde aktualisiert.")).toBeVisible();
+  await expect(
+    matrixRow("constraints").getByText("Sommerpause", { exact: true }),
+  ).toBeVisible();
+
+  page.on("dialog", (confirm) => confirm.accept());
+  await matrixRow("constraints").getByText("Sommerpause").click();
+  dialog = page.getByRole("dialog");
+  await dialog.getByRole("button", { name: "Löschen" }).click();
+  await expect(page.getByText("Restriktion wurde gelöscht.")).toBeVisible();
+  await expect(matrixRow("constraints").getByText("Sommerpause")).toHaveCount(
+    0,
+  );
+
+  await matrixRow("macro")
+    .getByRole("button", { name: "Eintrag anlegen in Macro" })
+    .click();
+  dialog = page.getByRole("dialog");
+  await dialog.getByLabel("Name").fill("Grundlagenaufbau");
+  await dialog.getByLabel("Startdatum").fill("2026-08-01");
+  await dialog.getByLabel("Enddatum").fill("2027-01-31");
+  await dialog
+    .getByRole("textbox", { name: "Ziel", exact: true })
+    .fill("Basis stabilisieren");
+  await dialog.getByLabel("Notiz").fill("Progressiv steigern");
+  await dialog.getByRole("button", { name: "Makrozyklus anlegen" }).click();
+  await expect(
+    matrixRow("macro").getByText("Grundlagenaufbau", { exact: true }),
+  ).toBeVisible();
+
+  await matrixRow("meso")
+    .getByRole("button", { name: "Eintrag anlegen in Meso" })
+    .click();
+  dialog = page.getByRole("dialog");
+  await dialog.getByLabel("Makrozyklus").selectOption({
+    label: "Grundlagenaufbau",
+  });
+  await dialog.getByLabel("Name").fill("Aerobe Basis");
+  await dialog.getByLabel("Startdatum").fill("2026-08-01");
+  await dialog.getByLabel("Enddatum").fill("2026-09-30");
+  await dialog
+    .getByRole("textbox", { name: "Ziel", exact: true })
+    .fill("Ausdauer aufbauen");
+  await dialog.getByLabel("Notiz").fill("Technik stabil halten");
+  await dialog.getByRole("button", { name: "Mesozyklus anlegen" }).click();
+  await expect(
+    matrixRow("meso").getByText("Aerobe Basis", { exact: true }),
+  ).toBeVisible();
+
+  await matrixRow("rpe")
+    .getByRole("button", { name: "Eintrag anlegen in Micro Target RPE" })
+    .click();
+  dialog = page.getByRole("dialog");
+  await dialog.getByLabel("Mesozyklus").selectOption({ label: "Aerobe Basis" });
+  await dialog.getByLabel("Name/KW").fill("KW 32");
+  await dialog.getByLabel("Startdatum").fill("2026-08-03");
+  await dialog.getByLabel("Enddatum").fill("2026-08-09");
+  await dialog.getByLabel("Target RPE").fill("5");
+  await dialog
+    .getByRole("textbox", { name: "Ziel", exact: true })
+    .fill("Ruhiger Einstieg");
+  await dialog.getByRole("button", { name: "Mikrozyklus anlegen" }).click();
+  const rpeBlock = matrixRow("rpe").locator(".matrix-block", {
+    hasText: "KW 32",
+  });
+  await expect(rpeBlock).toBeVisible();
+  await expect(rpeBlock.locator(".rpe-inline-trigger")).toHaveText("5");
+
+  await rpeBlock.locator(".rpe-inline-trigger").click();
+  await page.getByLabel("Target RPE bearbeiten").fill("6");
+  await page.getByLabel("Target RPE bearbeiten").press("Enter");
+  await expect(page.getByText("Mikrozyklus wurde aktualisiert.")).toBeVisible();
+  await expect(
+    matrixRow("rpe")
+      .locator(".matrix-block", { hasText: "KW 32" })
+      .locator(".rpe-inline-trigger"),
+  ).toHaveText("6");
+});
+
+test("shows history and restores a deleted entity", async ({ page }) => {
+  await page.goto("/");
+  await page.getByRole("button", { name: "Neue Saison" }).click();
+  await page.getByLabel("Name").fill(seasonNames.history);
+  await page.getByLabel("Startdatum").fill("2026-08-01");
+  await page.getByLabel("Enddatum").fill("2027-07-31");
+  await page.getByLabel("Beschreibung").fill("Gemeinsame Planung");
+  await page.getByLabel("Hauptziel").fill("Meisterschaft");
+  await page.getByRole("button", { name: "Saison speichern" }).click();
+  await openPlanningData(page, seasonNames.history);
+
+  const macrocycles = page.getByRole("region", { name: "Makrozyklen" });
+  await macrocycles.getByLabel("Name").fill("Grundlagenaufbau");
+  await macrocycles.getByLabel("Startdatum").fill("2026-08-01");
+  await macrocycles.getByLabel("Enddatum").fill("2027-01-31");
+  await macrocycles
+    .getByRole("textbox", { name: "Ziel", exact: true })
+    .fill("Grundlage stabilisieren");
+  await macrocycles.getByLabel("Notiz").fill("Progressiv steigern");
+  await macrocycles
+    .getByRole("button", { name: "Makrozyklus anlegen" })
+    .click();
+  await expect(macrocycles.getByText("Grundlagenaufbau")).toBeVisible();
+
+  await macrocycles.getByRole("button", { name: "Löschen" }).click();
+  await expect(macrocycles.getByText("Grundlagenaufbau")).not.toBeVisible();
+  await expect(page.getByRole("button", { name: "Rückgängig" })).toBeVisible();
+
+  await page.getByRole("button", { name: "Rückgängig" }).click();
+  await expect(
+    page.getByText("Die Löschung wurde rückgängig gemacht."),
+  ).toBeVisible();
+  await expect(macrocycles.getByText("Grundlagenaufbau")).toBeVisible();
+
+  await page.getByRole("tab", { name: "Historie" }).click();
+  await expect(
+    page.getByRole("heading", { name: "Historie", exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByText("Makrozyklus angelegt", { exact: false }),
+  ).toBeVisible();
+  await expect(
+    page.getByText("Makrozyklus gelöscht", { exact: false }),
+  ).toBeVisible();
+
+  const deleteEntry = page
+    .locator(".history-item")
+    .filter({ hasText: "gelöscht" })
+    .first();
+  await deleteEntry.getByRole("button", { name: "Wiederherstellen" }).click();
+  await expect(
+    page.getByText("wurde wiederhergestellt.", { exact: false }),
+  ).toBeVisible();
+  await page.getByRole("tab", { name: "Planungsdaten" }).click();
+  await expect(macrocycles.getByText("Grundlagenaufbau")).toBeVisible();
 });

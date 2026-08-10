@@ -1,10 +1,4 @@
-import {
-  useEffect,
-  useEffectEvent,
-  useRef,
-  useState,
-  type FormEvent,
-} from "react";
+import { useState, type FormEvent } from "react";
 import type {
   FocusDefinition,
   Mesocycle,
@@ -14,7 +8,9 @@ import type {
   TrainingSession,
 } from "../../lib/domain/types";
 import type { SeasonPlanningService } from "../../lib/domain/seasonPlanning";
-import type { TrainingSessionInput } from "../../lib/validation/domain";
+import { SessionCard } from "./SessionCard";
+import { Field, Head, Modal, Save, SessionEditor } from "./SessionEditor";
+import { formatDate, isoWeek, opt, sevenDays, volume } from "./format";
 
 const weekdays = [
   "Montag",
@@ -25,19 +21,6 @@ const weekdays = [
   "Samstag",
   "Sonntag",
 ];
-const emptySession: TrainingSessionInput = {
-  trainingDayId: "",
-  title: "",
-  startTime: "",
-  durationMinutes: undefined,
-  volumeMeters: undefined,
-  expectedRpe: undefined,
-  mainFocusId: "",
-  technicalFocusId: "",
-  keySession: false,
-  athleteNote: "",
-  equipment: "",
-};
 
 export function TrainerWeekView({
   season,
@@ -61,9 +44,10 @@ export function TrainerWeekView({
   const [selectedId, setSelectedId] = useState("");
   const [dayDate, setDayDate] = useState<string | null>(null);
   const [dayContext, setDayContext] = useState("");
-  const [sessionDate, setSessionDate] = useState<string | null>(null);
-  const [editing, setEditing] = useState<TrainingSession>();
-  const [form, setForm] = useState(emptySession);
+  const [editor, setEditor] = useState<{
+    date: string;
+    session?: TrainingSession;
+  } | null>(null);
   const [weekForm, setWeekForm] = useState<Microcycle | null>(null);
   const [mobileMode, setMobileMode] = useState<"day" | "week">("week");
   const [selectedDayIndex, setSelectedDayIndex] = useState<number | null>(null);
@@ -104,52 +88,6 @@ export function TrainerWeekView({
   function openDay(date: string) {
     setDayDate(date);
     setDayContext(days.find((day) => day.date === date)?.dayContext ?? "");
-  }
-  function openSession(date: string, session?: TrainingSession) {
-    const day = days.find((item) => item.date === date);
-    setSessionDate(date);
-    setEditing(session);
-    setForm(
-      session
-        ? {
-            trainingDayId: session.trainingDayId,
-            title: session.title ?? "",
-            startTime: session.startTime ?? "",
-            durationMinutes: session.durationMinutes,
-            volumeMeters: session.volumeMeters,
-            expectedRpe: session.expectedRpe,
-            mainFocusId: session.mainFocusId ?? "",
-            technicalFocusId: session.technicalFocusId ?? "",
-            keySession: session.keySession,
-            athleteNote: session.athleteNote ?? "",
-            equipment: session.equipment ?? "",
-          }
-        : { ...emptySession, trainingDayId: day?.id ?? "" },
-    );
-  }
-  async function saveSession(event: FormEvent) {
-    event.preventDefault();
-    if (!sessionDate) return;
-    let day = days.find((item) => item.date === sessionDate);
-    if (!day)
-      day = await service.createTrainingDay(season.id, {
-        date: sessionDate,
-        dayContext: "",
-        notes: "",
-      });
-    await service.saveTrainingSession(
-      season.id,
-      { ...form, trainingDayId: day.id },
-      editing,
-    );
-    await onChange();
-    setSessionDate(null);
-  }
-  async function removeSession() {
-    if (!editing) return;
-    await service.deleteTrainingSession(season.id, editing);
-    await onChange();
-    setSessionDate(null);
   }
   async function saveWeek(event: FormEvent) {
     event.preventDefault();
@@ -320,55 +258,18 @@ export function TrainerWeekView({
               </button>
               <div className="day-sessions">
                 {entries.map((session) => (
-                  <button
-                    className={`session-card${session.keySession ? " key" : ""}`}
-                    type="button"
+                  <SessionCard
                     key={session.id}
-                    onClick={() => openSession(date, session)}
-                  >
-                    <span className="session-topline">
-                      <strong>{session.startTime || "Zeit offen"}</strong>
-                      {session.keySession && <em>KEY</em>}
-                    </span>
-                    <span className="session-title">
-                      {session.title || "Session"}
-                    </span>
-                    <span className="session-metrics">
-                      <span>
-                        <small>Dauer</small>
-                        {session.durationMinutes
-                          ? `${session.durationMinutes} min`
-                          : "–"}
-                      </span>
-                      <span>
-                        <small>Umfang</small>
-                        {volume(session.volumeMeters)}
-                      </span>
-                      <span>
-                        <small>RPE</small>
-                        {session.expectedRpe ?? "–"}
-                      </span>
-                    </span>
-                    <span className="session-focus">
-                      <small>Main Focus</small>
-                      {focus(focusDefinitions, session.mainFocusId)}
-                    </span>
-                    <span className="session-focus">
-                      <small>Technical Focus</small>
-                      {focus(focusDefinitions, session.technicalFocusId)}
-                    </span>
-                    {session.athleteNote && (
-                      <span className="session-note">
-                        {session.athleteNote}
-                      </span>
-                    )}
-                  </button>
+                    session={session}
+                    focusDefinitions={focusDefinitions}
+                    onClick={() => setEditor({ date, session })}
+                  />
                 ))}
               </div>
               <button
                 className="add-session"
                 type="button"
-                onClick={() => openSession(date)}
+                onClick={() => setEditor({ date })}
               >
                 ＋ Session
               </button>
@@ -460,268 +361,18 @@ export function TrainerWeekView({
           </form>
         </Modal>
       )}
-      {sessionDate && (
-        <Modal close={() => setSessionDate(null)}>
-          <form className="editor-sheet" onSubmit={saveSession}>
-            <Head
-              title={`${editing ? "Session bearbeiten" : "Session anlegen"} · ${formatDate(sessionDate)}`}
-              close={() => setSessionDate(null)}
-            />
-            <div className="editor-grid three">
-              <Field label="Titel" wide>
-                <input
-                  value={form.title}
-                  onChange={(event) =>
-                    setForm({ ...form, title: event.target.value })
-                  }
-                />
-              </Field>
-              <Field label="Uhrzeit">
-                <input
-                  type="time"
-                  value={form.startTime}
-                  onChange={(event) =>
-                    setForm({ ...form, startTime: event.target.value })
-                  }
-                />
-              </Field>
-              <NumberField
-                label="Dauer (min)"
-                value={form.durationMinutes}
-                set={(value) => setForm({ ...form, durationMinutes: value })}
-              />
-              <NumberField
-                label="Umfang (m)"
-                value={form.volumeMeters}
-                set={(value) => setForm({ ...form, volumeMeters: value })}
-              />
-              <Field label="Main Focus">
-                <Focus
-                  value={form.mainFocusId}
-                  items={focusDefinitions}
-                  set={(value) => setForm({ ...form, mainFocusId: value })}
-                />
-              </Field>
-              <Field label="Technical Focus">
-                <Focus
-                  value={form.technicalFocusId}
-                  items={focusDefinitions}
-                  set={(value) => setForm({ ...form, technicalFocusId: value })}
-                />
-              </Field>
-              <NumberField
-                label="Expected RPE"
-                value={form.expectedRpe}
-                set={(value) => setForm({ ...form, expectedRpe: value })}
-              />
-              <Field label="Equipment" wide>
-                <input
-                  value={form.equipment}
-                  onChange={(event) =>
-                    setForm({ ...form, equipment: event.target.value })
-                  }
-                />
-              </Field>
-              <Field label="Hinweis" wide>
-                <textarea
-                  value={form.athleteNote}
-                  onChange={(event) =>
-                    setForm({ ...form, athleteNote: event.target.value })
-                  }
-                />
-              </Field>
-              <label className="key-toggle">
-                <input
-                  type="checkbox"
-                  checked={form.keySession}
-                  onChange={(event) =>
-                    setForm({ ...form, keySession: event.target.checked })
-                  }
-                />
-                <span>
-                  <strong>Key Session</strong>
-                  <small>Zentrale Einheit der Woche</small>
-                </span>
-              </label>
-            </div>
-            <div className="editor-footer">
-              {editing && (
-                <button
-                  className="button danger"
-                  type="button"
-                  onClick={() => void removeSession()}
-                >
-                  Session löschen
-                </button>
-              )}
-              <button className="button primary">Session speichern</button>
-            </div>
-          </form>
-        </Modal>
+      {editor && (
+        <SessionEditor
+          season={season}
+          date={editor.date}
+          session={editor.session}
+          days={days}
+          focusDefinitions={focusDefinitions}
+          service={service}
+          onSaved={onChange}
+          onClose={() => setEditor(null)}
+        />
       )}
     </section>
   );
-}
-function Modal({
-  close,
-  children,
-}: {
-  close: () => void;
-  children: React.ReactNode;
-}) {
-  const dialogRef = useRef<HTMLDivElement>(null);
-  const onClose = useEffectEvent(close);
-  useEffect(() => {
-    const previous = document.activeElement as HTMLElement | null;
-    const dialog = dialogRef.current;
-    dialog
-      ?.querySelector<HTMLElement>("input, button, select, textarea")
-      ?.focus();
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onClose();
-      if (event.key !== "Tab" || !dialog) return;
-      const controls = [
-        ...dialog.querySelectorAll<HTMLElement>(
-          "button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex='0']",
-        ),
-      ];
-      const first = controls[0];
-      const last = controls.at(-1);
-      if (event.shiftKey && document.activeElement === first) {
-        event.preventDefault();
-        last?.focus();
-      } else if (!event.shiftKey && document.activeElement === last) {
-        event.preventDefault();
-        first?.focus();
-      }
-    };
-    document.addEventListener("keydown", onKeyDown);
-    return () => {
-      document.removeEventListener("keydown", onKeyDown);
-      previous?.focus();
-    };
-  }, []);
-  return (
-    <div className="modal-backdrop" role="presentation" onMouseDown={close}>
-      <div
-        ref={dialogRef}
-        role="dialog"
-        aria-modal="true"
-        aria-label="Editor"
-        onMouseDown={(event) => event.stopPropagation()}
-      >
-        {children}
-      </div>
-    </div>
-  );
-}
-function Head({ title, close }: { title: string; close: () => void }) {
-  return (
-    <div className="editor-heading">
-      <h3>{title}</h3>
-      <button
-        className="icon-button"
-        type="button"
-        aria-label="Dialog schließen"
-        title="Dialog schließen"
-        onClick={close}
-      >
-        ×
-      </button>
-    </div>
-  );
-}
-function Save() {
-  return (
-    <div className="editor-footer">
-      <button className="button primary">Änderungen speichern</button>
-    </div>
-  );
-}
-function Field({
-  label,
-  wide,
-  children,
-}: {
-  label: string;
-  wide?: boolean;
-  children: React.ReactNode;
-}) {
-  return (
-    <label className={`field${wide ? " wide" : ""}`}>
-      <span>{label}</span>
-      {children}
-    </label>
-  );
-}
-function NumberField({
-  label,
-  value,
-  set,
-}: {
-  label: string;
-  value?: number;
-  set: (value?: number) => void;
-}) {
-  return (
-    <Field label={label}>
-      <input
-        type="number"
-        min="0"
-        value={value ?? ""}
-        onChange={(event) => set(opt(event.target.value))}
-      />
-    </Field>
-  );
-}
-function Focus({
-  value,
-  items,
-  set,
-}: {
-  value: string;
-  items: FocusDefinition[];
-  set: (value: string) => void;
-}) {
-  return (
-    <select value={value} onChange={(event) => set(event.target.value)}>
-      <option value="">Kein Fokus</option>
-      {items.map((item) => (
-        <option key={item.id} value={item.id}>
-          {item.name}
-        </option>
-      ))}
-    </select>
-  );
-}
-function sevenDays(value: string) {
-  const start = new Date(`${value}T12:00:00Z`);
-  return Array.from({ length: 7 }, (_, i) => {
-    const date = new Date(start);
-    date.setUTCDate(start.getUTCDate() + i);
-    return date.toISOString().slice(0, 10);
-  });
-}
-function isoWeek(value: string) {
-  const date = new Date(`${value}T12:00:00Z`);
-  date.setUTCDate(date.getUTCDate() + 4 - (date.getUTCDay() || 7));
-  const start = new Date(Date.UTC(date.getUTCFullYear(), 0, 1));
-  return Math.ceil(((date.getTime() - start.getTime()) / 86400000 + 1) / 7);
-}
-function formatDate(value: string) {
-  return new Intl.DateTimeFormat("de-DE", {
-    day: "2-digit",
-    month: "short",
-  }).format(new Date(`${value}T12:00:00Z`));
-}
-function volume(value?: number) {
-  return value === undefined
-    ? "–"
-    : `${new Intl.NumberFormat("de-DE").format(value)} m`;
-}
-function focus(items: FocusDefinition[], id?: string) {
-  return items.find((item) => item.id === id)?.name ?? "–";
-}
-function opt(value: string) {
-  return value === "" ? undefined : Number(value);
 }

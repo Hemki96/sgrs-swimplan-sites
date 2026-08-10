@@ -5,6 +5,7 @@ import {
   PlanningValidationError,
   type SeasonPlanningService,
 } from "../../lib/domain/seasonPlanning";
+import type { UndoRequest } from "../../lib/domain/history";
 import type {
   FocusDefinition,
   FocusSegment,
@@ -26,7 +27,7 @@ interface Props {
   focusSegments: FocusSegment[];
   service: SeasonPlanningService;
   onChange: () => Promise<void>;
-  onNotice: (message: string) => void;
+  onNotice: (message: string, undo?: UndoRequest) => void;
 }
 
 const blankDimension: PeriodizationDimensionInput = {
@@ -179,7 +180,10 @@ function DimensionSection({
   async function remove(dimension: PeriodizationDimension) {
     try {
       await service.deleteDimension(dimension);
-      onNotice("Dimension wurde gelöscht.");
+      onNotice("Dimension wurde gelöscht.", {
+        collection: "periodization_dimensions",
+        id: dimension.id,
+      });
       await onChange();
     } catch (error) {
       onNotice(errorMessage(error));
@@ -319,7 +323,10 @@ function DefinitionSection({
   async function remove(definition: FocusDefinition) {
     try {
       await service.deleteFocusDefinition(definition);
-      onNotice("Fokusdefinition wurde gelöscht.");
+      onNotice("Fokusdefinition wurde gelöscht.", {
+        collection: "focus_definitions",
+        id: definition.id,
+      });
       await onChange();
     } catch (error) {
       onNotice(errorMessage(error));
@@ -476,7 +483,10 @@ function SegmentSection({
   async function remove(segment: FocusSegment) {
     try {
       await service.deleteFocusSegment(segment);
-      onNotice("Fokussegment wurde gelöscht.");
+      onNotice("Fokussegment wurde gelöscht.", {
+        collection: "focus_segments",
+        id: segment.id,
+      });
       await onChange();
     } catch (error) {
       onNotice(errorMessage(error));

@@ -1,5 +1,53 @@
 # Changelog
 
+## 2026-08-10 – History & Recovery (ExecPlan 006)
+
+- Neuer Tab „Historie“ in der Planungs-Shell mit Revisionsliste (neueste zuerst),
+  Entitätsfilter und Feld-Diff je Revision (M1/M2).
+- `HistoryService` mit `listRevisions`, `listEntityHistory`, `restoreRevision`
+  und `restoreEntity`; Restore unterliegt optimistischem Locking –
+  Konflikte werden gemeldet, nie still überschrieben (M4).
+- „Wiederherstellen“ je Revision stellt den Zustand vor dem Löschen bzw. den
+  Zustand der gewählten Revision wieder her und erzeugt eine neue Revision.
+- Undo-Toast „Rückgängig“ nach Soft Delete in allen Planungsdaten-Sections
+  (M5); Saison-Undo bleibt unverändert.
+- 8 neue Unit-Tests (`history-service.test.ts`) und ein neues E2E-Szenario;
+  Format, Lint, Typecheck, 89 Unit-Tests und Build grün.
+
+## 2026-08-10 – Import/Export REST (ExecPlan 009, M3)
+
+- `GET /api/storage/export` liefert nun das dokumentierte, versionierte
+  JSON-Format (`schemaVersion: "1.0"`, `exportedAt`, camelCase-Collections)
+  direkt als Backup-Datei.
+- `POST /api/storage/import` validiert den Snapshot serverseitig
+  (Struktur, bekannte Collections, gültige Entities und Versionszähler,
+  Saison-Scope) und wird weiterhin als eine atomare D1-Batch-Operation
+  angewendet; Konflikte geben 409 ohne Teilwrites.
+- Storage-REST-Logik in `worker/storage.ts` extrahiert; Worker-Tests mit
+  Mock-D1 decken Exportformat, Export-Import-Roundtrip über Preview/Remap,
+  Validierungsfehler und atomare Konfliktbehandlung ab.
+- Das Collection-Mapping liegt zentral in `EXPORT_COLLECTION_KEYS`
+  (`StorageAdapter.ts`) und wird von Export, Import und Adapter geteilt.
+- Quality Gate: 91 Unit-Tests bestanden; der E2E-Import-Vorschaufiuss bleibt
+  grün.
+
+## 2026-08-10 – Saisonmatrix-Editing (ExecPlan 004, M5)
+
+- Blöcke der Saisonmatrix sind direkt bearbeitbar: Klick öffnet einen Dialog
+  mit dem vollständigen Entity-Formular für Wettkämpfe, Restriktionen,
+  Macro-/Meso-/Mikrozyklen und Fokussegmente.
+- Löschen im Dialog als Soft Delete mit Bestätigung; Speichern und Löschen über
+  den `SeasonPlanningService` mit Revision, Validierung und
+  Versionskonflikt-Schutz.
+- Klick auf eine Leerfläche einer Matrixzeile legt ein neues Entity mit dem
+  Zeitraum der angeklickten Kalenderwoche an; das „+“ im Bereichslabel ebenso
+  für die erste Woche.
+- Micro Target RPE ist inline im Block editierbar (Zahl anklicken, Wert
+  bestätigen mit Enter oder Blur).
+- UI-unabhängiges Bearbeiten-Modell unter `season-matrix/matrixEditingModel.ts`
+  mit 5 neuen Unit-Tests; E2E deckt Anlegen, Bearbeiten, Löschen und Inline-RPE
+  ab. Quality Gate: 75 Unit- und 12 E2E-Tests bestanden.
+
 ## 2026-08-10 – Primäre Planungsoberfläche
 
 - URL-basierte Saisonplanung unter `/saisons/:seasonId` mit Reload- und

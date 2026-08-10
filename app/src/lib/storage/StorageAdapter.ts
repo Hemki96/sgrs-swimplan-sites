@@ -22,6 +22,26 @@ export const STORAGE_COLLECTIONS = [
 
 export type StorageCollection = (typeof STORAGE_COLLECTIONS)[number];
 
+export const EXPORT_COLLECTION_KEYS: Record<StorageCollection, string> = {
+  configuration_values: "configurationValues",
+  seasons: "seasons",
+  event_tracks: "eventTracks",
+  events: "events",
+  calendar_constraints: "calendarConstraints",
+  macrocycles: "macrocycles",
+  mesocycles: "mesocycles",
+  microcycles: "microcycles",
+  microcycle_segments: "microcycleSegments",
+  periodization_dimensions: "periodizationDimensions",
+  focus_definitions: "focusDefinitions",
+  focus_segments: "focusSegments",
+  training_days: "trainingDays",
+  training_sessions: "trainingSessions",
+  equipment_items: "equipmentItems",
+  session_equipment: "sessionEquipment",
+  revisions: "revisions",
+};
+
 export interface ListOptions {
   includeDeleted?: boolean;
 }

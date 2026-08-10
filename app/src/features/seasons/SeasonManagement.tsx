@@ -447,6 +447,7 @@ export function SeasonManagement({
                       "week",
                       "analytics",
                       "data",
+                      "history",
                     ] as PlanningView[]
                   ).map((item) => (
                     <button
@@ -464,7 +465,9 @@ export function SeasonManagement({
                             ? "Woche"
                             : item === "analytics"
                               ? "Analyse"
-                              : "Planungsdaten"}
+                              : item === "history"
+                                ? "Historie"
+                                : "Planungsdaten"}
                     </button>
                   ))}
                 </nav>

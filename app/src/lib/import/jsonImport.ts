@@ -3,6 +3,7 @@ import type {
   StorageCollection,
   StorageSnapshot,
 } from "../storage/StorageAdapter";
+import { EXPORT_COLLECTION_KEYS } from "../storage/StorageAdapter";
 
 export interface ImportDocument {
   schemaVersion: "1.0" | 1 | 2;
@@ -20,25 +21,12 @@ export interface ImportPreview {
   errors: string[];
 }
 
-const externalKeys: Record<string, StorageCollection> = {
-  configurationValues: "configuration_values",
-  seasons: "seasons",
-  eventTracks: "event_tracks",
-  events: "events",
-  calendarConstraints: "calendar_constraints",
-  macrocycles: "macrocycles",
-  mesocycles: "mesocycles",
-  microcycles: "microcycles",
-  microcycleSegments: "microcycle_segments",
-  periodizationDimensions: "periodization_dimensions",
-  focusDefinitions: "focus_definitions",
-  focusSegments: "focus_segments",
-  trainingDays: "training_days",
-  trainingSessions: "training_sessions",
-  equipmentItems: "equipment_items",
-  sessionEquipment: "session_equipment",
-  revisions: "revisions",
-};
+const externalKeys = Object.fromEntries(
+  Object.entries(EXPORT_COLLECTION_KEYS).map(([snake, camel]) => [
+    camel,
+    snake,
+  ]),
+) as Record<string, StorageCollection>;
 
 export function parseImport(text: string): ImportPreview {
   const errors: string[] = [];

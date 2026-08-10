@@ -46,8 +46,10 @@ import {
 } from "../../lib/validation/domain";
 import { PeriodizationManagement } from "./PeriodizationManagement";
 import { TrainingDayManagement } from "./TrainingDayManagement";
+import { HistoryView } from "./HistoryView";
+import { HistoryService, type UndoRequest } from "../../lib/domain/history";
 import { SeasonMatrix } from "../season-matrix/SeasonMatrix";
-import { TrainerWeekView } from "../training-week/TrainerWeekView";
+import { MobileWeekPlanning } from "../mobile/MobileWeekPlanning";
 import { Dashboard } from "../dashboard/Dashboard";
 import { SeasonAnalytics } from "../analytics/SeasonAnalytics";
 
@@ -106,7 +108,7 @@ const blankMicrocycleSegment: MicrocycleSegmentInput = {
 };
 
 export type PlanningView =
-  "dashboard" | "matrix" | "week" | "analytics" | "data";
+  "dashboard" | "matrix" | "week" | "analytics" | "data" | "history";
 
 export function SeasonPlanning({
   season,
@@ -118,6 +120,7 @@ export function SeasonPlanning({
   view: PlanningView;
 }) {
   const service = useMemo(() => new SeasonPlanningService(storage), [storage]);
+  const historyService = useMemo(() => new HistoryService(storage), [storage]);
   const [tracks, setTracks] = useState<EventTrack[]>([]);
   const [events, setEvents] = useState<Event[]>([]);
   const [constraints, setConstraints] = useState<CalendarConstraint[]>([]);
@@ -137,7 +140,25 @@ export function SeasonPlanning({
     [],
   );
   const [notice, setNotice] = useState("");
+  const [undo, setUndo] = useState<UndoRequest | null>(null);
   const initializationRef = useRef<Promise<void> | null>(null);
+
+  function notify(message: string, undoRequest?: UndoRequest) {
+    setNotice(message);
+    setUndo(undoRequest ?? null);
+  }
+
+  async function undoLast() {
+    if (!undo) return;
+    try {
+      await historyService.restoreEntity(undo.collection, undo.id, season.id);
+      setNotice("Die Löschung wurde rückgängig gemacht.");
+      setUndo(null);
+      await reload();
+    } catch (error) {
+      setNotice(errorMessage(error));
+    }
+  }
 
   async function reload() {
     const [
@@ -251,9 +272,14 @@ export function SeasonPlanning({
       aria-label="Saisonplanung"
     >
       {notice && (
-        <p className="notice" role="status">
-          {notice}
-        </p>
+        <div className="notice app-notice" role="status" aria-live="polite">
+          <span>{notice}</span>
+          {undo && (
+            <button className="button quiet" onClick={() => void undoLast()}>
+              Rückgängig
+            </button>
+          )}
+        </div>
       )}
       {view === "dashboard" && (
         <Dashboard
@@ -268,10 +294,11 @@ export function SeasonPlanning({
         />
       )}
       {view === "week" && (
-        <TrainerWeekView
+        <MobileWeekPlanning
           season={season}
           microcycles={microcycles}
           mesocycles={mesocycles}
+          events={events}
           focusDefinitions={focusDefinitions}
           days={trainingDays}
           sessions={trainingSessions}
@@ -291,6 +318,9 @@ export function SeasonPlanning({
           dimensions={dimensions}
           focusDefinitions={focusDefinitions}
           focusSegments={focusSegments}
+          service={service}
+          onChange={reload}
+          onNotice={notify}
         />
       )}
       {view === "analytics" && (
@@ -310,7 +340,7 @@ export function SeasonPlanning({
             service={service}
             seasonId={season.id}
             onChange={reload}
-            onNotice={setNotice}
+            onNotice={notify}
           />
           <EventSection
             events={events}
@@ -318,14 +348,14 @@ export function SeasonPlanning({
             service={service}
             seasonId={season.id}
             onChange={reload}
-            onNotice={setNotice}
+            onNotice={notify}
           />
           <ConstraintSection
             constraints={constraints}
             service={service}
             seasonId={season.id}
             onChange={reload}
-            onNotice={setNotice}
+            onNotice={notify}
           />
           <MacrocycleSection
             macrocycles={macrocycles}
@@ -333,7 +363,7 @@ export function SeasonPlanning({
             service={service}
             seasonId={season.id}
             onChange={reload}
-            onNotice={setNotice}
+            onNotice={notify}
           />
           <MesocycleSection
             mesocycles={mesocycles}
@@ -341,7 +371,7 @@ export function SeasonPlanning({
             service={service}
             seasonId={season.id}
             onChange={reload}
-            onNotice={setNotice}
+            onNotice={notify}
           />
           <MicrocycleSection
             microcycles={microcycles}
@@ -349,7 +379,7 @@ export function SeasonPlanning({
             service={service}
             seasonId={season.id}
             onChange={reload}
-            onNotice={setNotice}
+            onNotice={notify}
           />
           <MicrocycleSegmentSection
             segments={microcycleSegments}
@@ -357,7 +387,7 @@ export function SeasonPlanning({
             service={service}
             seasonId={season.id}
             onChange={reload}
-            onNotice={setNotice}
+            onNotice={notify}
           />
           <PeriodizationManagement
             seasonId={season.id}
@@ -366,16 +396,19 @@ export function SeasonPlanning({
             focusSegments={focusSegments}
             service={service}
             onChange={reload}
-            onNotice={setNotice}
+            onNotice={notify}
           />
           <TrainingDayManagement
             season={season}
             days={trainingDays}
             service={service}
             onChange={reload}
-            onNotice={setNotice}
+            onNotice={notify}
           />
         </div>
+      )}
+      {view === "history" && (
+        <HistoryView seasonId={season.id} storage={storage} onChange={reload} />
       )}
     </section>
   );
@@ -434,7 +467,10 @@ function MicrocycleSegmentSection({
   async function remove(segment: MicrocycleSegment) {
     try {
       await service.deleteMicrocycleSegment(segment);
-      onNotice("Mikrozyklussegment wurde gelöscht.");
+      onNotice("Mikrozyklussegment wurde gelöscht.", {
+        collection: "microcycle_segments",
+        id: segment.id,
+      });
       await onChange();
     } catch (error) {
       onNotice(errorMessage(error));
@@ -598,7 +634,10 @@ function MicrocycleSection({
   async function remove(microcycle: Microcycle) {
     try {
       await service.deleteMicrocycle(microcycle);
-      onNotice("Mikrozyklus wurde gelöscht.");
+      onNotice("Mikrozyklus wurde gelöscht.", {
+        collection: "microcycles",
+        id: microcycle.id,
+      });
       await onChange();
     } catch (error) {
       onNotice(errorMessage(error));
@@ -778,7 +817,10 @@ function MesocycleSection({
   async function remove(mesocycle: Mesocycle) {
     try {
       await service.deleteMesocycle(mesocycle);
-      onNotice("Mesozyklus wurde gelöscht.");
+      onNotice("Mesozyklus wurde gelöscht.", {
+        collection: "mesocycles",
+        id: mesocycle.id,
+      });
       await onChange();
     } catch (error) {
       onNotice(errorMessage(error));
@@ -935,7 +977,10 @@ function MacrocycleSection({
   async function remove(macrocycle: Macrocycle) {
     try {
       await service.deleteMacrocycle(macrocycle);
-      onNotice("Makrozyklus wurde gelöscht.");
+      onNotice("Makrozyklus wurde gelöscht.", {
+        collection: "macrocycles",
+        id: macrocycle.id,
+      });
       await onChange();
     } catch (error) {
       onNotice(errorMessage(error));
@@ -1046,7 +1091,7 @@ interface SectionProps {
   service: SeasonPlanningService;
   seasonId: string;
   onChange: () => Promise<void>;
-  onNotice: (message: string) => void;
+  onNotice: (message: string, undo?: UndoRequest) => void;
 }
 
 function TrackSection({
@@ -1092,7 +1137,10 @@ function TrackSection({
   async function remove(track: EventTrack) {
     try {
       await service.deleteTrack(track);
-      onNotice("Eventspur wurde gelöscht.");
+      onNotice("Eventspur wurde gelöscht.", {
+        collection: "event_tracks",
+        id: track.id,
+      });
       await onChange();
     } catch (error) {
       onNotice(errorMessage(error));
@@ -1213,7 +1261,10 @@ function EventSection({
 
   async function remove(event: Event) {
     await service.deleteEvent(event);
-    onNotice("Wettkampf wurde gelöscht.");
+    onNotice("Wettkampf wurde gelöscht.", {
+      collection: "events",
+      id: event.id,
+    });
     await onChange();
   }
 
@@ -1388,7 +1439,10 @@ function ConstraintSection({
 
   async function remove(constraint: CalendarConstraint) {
     await service.deleteConstraint(constraint);
-    onNotice("Restriktion wurde gelöscht.");
+    onNotice("Restriktion wurde gelöscht.", {
+      collection: "calendar_constraints",
+      id: constraint.id,
+    });
     await onChange();
   }
 

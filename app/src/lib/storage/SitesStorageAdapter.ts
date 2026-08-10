@@ -10,6 +10,7 @@ import type {
   StoredEntity,
 } from "./StorageAdapter";
 import { GLOBAL_REVISION_SCOPE_ID } from "./StorageAdapter";
+import { EXPORT_COLLECTION_KEYS } from "./StorageAdapter";
 
 export class SitesStorageAdapter implements StorageAdapter {
   constructor(private readonly apiBase = "/api/storage") {}
@@ -79,8 +80,14 @@ export class SitesStorageAdapter implements StorageAdapter {
     return this.listRevisions(GLOBAL_REVISION_SCOPE_ID);
   }
 
-  exportAll(): Promise<StorageSnapshot> {
-    return this.request("/export");
+  async exportAll(): Promise<StorageSnapshot> {
+    const document = await this.request<Record<string, unknown>>("/export");
+    const snapshot: StorageSnapshot = {};
+    for (const [collection, key] of Object.entries(EXPORT_COLLECTION_KEYS)) {
+      const rows = document[key];
+      if (Array.isArray(rows)) snapshot[collection as StorageCollection] = rows;
+    }
+    return snapshot;
   }
 
   hydrate(snapshot: StorageSnapshot): Promise<void> {

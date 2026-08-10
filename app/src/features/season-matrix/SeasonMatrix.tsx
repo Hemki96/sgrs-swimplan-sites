@@ -1,5 +1,6 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 
+import type { SeasonPlanningService } from "../../lib/domain/seasonPlanning";
 import type {
   CalendarConstraint,
   Event,
@@ -16,6 +17,14 @@ import {
   buildSeasonMatrixViewModel,
   type SeasonMatrixWeek,
 } from "./seasonMatrixViewModel";
+import { weekRangeForIndex } from "./matrixEditingModel";
+import type { MatrixCreateContext } from "./matrixEditingModel";
+import type { MatrixEditingEntity } from "./matrixEditingModel";
+import {
+  MatrixEditorDialog,
+  RpeInlineEditor,
+  type MatrixEditorDraft,
+} from "./SeasonMatrixEditing";
 
 export interface SeasonMatrixProps {
   season: Season;
@@ -28,6 +37,9 @@ export interface SeasonMatrixProps {
   dimensions: PeriodizationDimension[];
   focusDefinitions: FocusDefinition[];
   focusSegments: FocusSegment[];
+  service?: SeasonPlanningService;
+  onChange?: () => Promise<void>;
+  onNotice?: (message: string) => void;
 }
 
 interface MatrixBlock {
@@ -45,6 +57,7 @@ export interface MatrixRow {
   eyebrow?: string;
   blocks: MatrixBlock[];
   kind: "events" | "constraints" | "macro" | "focus" | "meso" | "rpe";
+  context?: MatrixCreateContext;
 }
 
 const dimensionOrder = [
@@ -75,6 +88,12 @@ export function SeasonMatrix(props: SeasonMatrixProps) {
     [props.season, props.tracks],
   );
   const rows = useMemo(() => buildSeasonMatrixRows(props), [props]);
+  const [draft, setDraft] = useState<MatrixEditorDraft | null>(null);
+  const microcyclesById = useMemo(
+    () => new Map(props.microcycles.map((cycle) => [cycle.id, cycle])),
+    [props.microcycles],
+  );
+  const editable = Boolean(props.service);
   const monthBands = useMemo(
     () =>
       viewModel.axis.months.map((month, index, months) => {
@@ -94,6 +113,49 @@ export function SeasonMatrix(props: SeasonMatrixProps) {
     "--matrix-weeks": viewModel.axis.weeks.length,
   } as React.CSSProperties;
 
+  function handleSaved(message: string) {
+    setDraft(null);
+    void (async () => {
+      await props.onChange?.();
+      props.onNotice?.(message);
+    })();
+  }
+
+  function openEdit(row: MatrixRow, block: MatrixBlock) {
+    if (!props.service) return;
+    const kind = kindForRow(row.kind);
+    const entity = entityForBlock(row.kind, block.id, props);
+    if (!kind || !entity) return;
+    setDraft({
+      kind,
+      entity,
+      context: row.context ?? {},
+      range: { startDate: block.startDate, endDate: block.endDate },
+    });
+  }
+
+  function openCreate(row: MatrixRow, weekIndex?: number) {
+    if (!props.service) return;
+    const kind = kindForRow(row.kind);
+    if (!kind) return;
+    const range = weekRangeForIndex(viewModel.axis.weeks, weekIndex ?? 0);
+    const context: MatrixCreateContext = { ...row.context };
+    if (kind === "mesocycle" && !context.macrocycleId && props.macrocycles[0]) {
+      context.macrocycleId = props.macrocycles[0].id;
+    }
+    if (kind === "microcycle" && !context.mesocycleId && props.mesocycles[0]) {
+      context.mesocycleId = props.mesocycles[0].id;
+    }
+    if (kind === "focusSegment" && context.dimensionId) {
+      const firstFocus = props.focusDefinitions.find(
+        (definition) =>
+          definition.dimensionId === context.dimensionId && definition.active,
+      );
+      if (firstFocus) context.focusDefinitionId = firstFocus.id;
+    }
+    setDraft({ kind, entity: null, context, range });
+  }
+
   return (
     <section className="season-matrix-section" aria-labelledby="matrix-title">
       <div className="matrix-heading">
@@ -102,6 +164,9 @@ export function SeasonMatrix(props: SeasonMatrixProps) {
           <h3 id="matrix-title">Saisonmatrix</h3>
           <p>
             {viewModel.axis.weeks.length} Kalenderwochen · Horizontal scrollen
+            {editable
+              ? " · Klicken zum Bearbeiten, Leerfläche zum Anlegen"
+              : ""}
           </p>
         </div>
         <div className="matrix-legend" aria-label="Legende">
@@ -155,10 +220,33 @@ export function SeasonMatrix(props: SeasonMatrixProps) {
               key={row.id}
               row={row}
               weeks={viewModel.axis.weeks}
+              editable={editable}
+              service={props.service}
+              microcycles={microcyclesById}
+              onEdit={openEdit}
+              onAdd={openCreate}
+              onSaved={handleSaved}
+              onNotice={props.onNotice}
             />
           ))}
         </div>
       </div>
+      {draft && props.service && (
+        <MatrixEditorDialog
+          draft={draft}
+          seasonId={props.season.id}
+          tracks={props.tracks}
+          events={props.events}
+          macrocycles={props.macrocycles}
+          mesocycles={props.mesocycles}
+          dimensions={props.dimensions}
+          focusDefinitions={props.focusDefinitions}
+          service={props.service}
+          onSaved={handleSaved}
+          onNotice={props.onNotice ?? (() => undefined)}
+          onClose={() => setDraft(null)}
+        />
+      )}
     </section>
   );
 }
@@ -166,30 +254,127 @@ export function SeasonMatrix(props: SeasonMatrixProps) {
 function MatrixRowView({
   row,
   weeks,
+  editable,
+  service,
+  microcycles,
+  onEdit,
+  onAdd,
+  onSaved,
+  onNotice,
 }: {
   row: MatrixRow;
   weeks: SeasonMatrixWeek[];
+  editable: boolean;
+  service?: SeasonPlanningService;
+  microcycles: Map<string, Microcycle>;
+  onEdit: (row: MatrixRow, block: MatrixBlock) => void;
+  onAdd: (row: MatrixRow, weekIndex?: number) => void;
+  onSaved: (message: string) => void;
+  onNotice?: (message: string) => void;
 }) {
+  function handleRowClick(event: React.MouseEvent<HTMLDivElement>) {
+    if (!editable) return;
+    const rect = event.currentTarget.getBoundingClientRect();
+    if (rect.width <= 0) return;
+    const weekIndex = Math.floor(
+      ((event.clientX - rect.left) / rect.width) * weeks.length,
+    );
+    onAdd(row, Math.max(0, Math.min(weeks.length - 1, weekIndex)));
+  }
   return (
     <>
-      <div className={`matrix-row-label matrix-row-label-${row.kind}`}>
+      <div
+        className={`matrix-row-label matrix-row-label-${row.kind}`}
+        data-matrix-row={row.id}
+      >
         {row.eyebrow ? <span>{row.eyebrow}</span> : null}
         <strong>{row.label}</strong>
+        {editable ? (
+          <button
+            type="button"
+            className="matrix-row-add"
+            aria-label={`Eintrag anlegen in ${row.label}`}
+            onClick={(event) => {
+              event.stopPropagation();
+              onAdd(row);
+            }}
+          >
+            +
+          </button>
+        ) : null}
       </div>
-      <div className={`matrix-row matrix-row-${row.kind}`}>
+      <div
+        className={`matrix-row matrix-row-${row.kind}${editable ? " matrix-row-editable" : ""}`}
+        data-matrix-row={row.id}
+        onClick={handleRowClick}
+      >
         <div className="matrix-grid-lines" aria-hidden="true" />
         {row.blocks.map((block) => {
           const start = weekIndexForDate(weeks, block.startDate);
           const end = weekIndexForDate(weeks, block.endDate);
+          const gridColumn = `${start + 1} / span ${Math.max(1, end - start + 1)}`;
+          if (editable && row.kind === "rpe") {
+            const microcycle = microcycles.get(block.id);
+            return (
+              <div
+                className={`matrix-block matrix-block-${block.tone} matrix-block-action`}
+                key={block.id}
+                tabIndex={0}
+                role="button"
+                aria-label={`Mikrozyklus bearbeiten: ${block.detail ?? block.label}`}
+                style={{ gridColumn }}
+                title={`${block.label}: ${formatDate(block.startDate)}–${formatDate(block.endDate)}`}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  onEdit(row, block);
+                }}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" || event.key === " ") {
+                    event.preventDefault();
+                    onEdit(row, block);
+                  }
+                }}
+              >
+                {microcycle && service && onNotice ? (
+                  <RpeInlineEditor
+                    microcycle={microcycle}
+                    service={service}
+                    onSaved={onSaved}
+                    onNotice={onNotice}
+                  />
+                ) : (
+                  <strong>{block.label}</strong>
+                )}
+                {block.detail ? <span>{block.detail}</span> : null}
+              </div>
+            );
+          }
+          if (editable) {
+            return (
+              <button
+                type="button"
+                className={`matrix-block matrix-block-${block.tone} matrix-block-action`}
+                key={block.id}
+                aria-label={`${block.label}: ${formatDate(block.startDate)} bis ${formatDate(block.endDate)}${block.detail ? `, ${block.detail}` : ""}`}
+                style={{ gridColumn }}
+                title={`${block.label}: ${formatDate(block.startDate)}–${formatDate(block.endDate)}`}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  onEdit(row, block);
+                }}
+              >
+                <strong>{block.label}</strong>
+                {block.detail ? <span>{block.detail}</span> : null}
+              </button>
+            );
+          }
           return (
             <div
               className={`matrix-block matrix-block-${block.tone}`}
               key={block.id}
               tabIndex={0}
               aria-label={`${block.label}: ${formatDate(block.startDate)} bis ${formatDate(block.endDate)}${block.detail ? `, ${block.detail}` : ""}`}
-              style={{
-                gridColumn: `${start + 1} / span ${Math.max(1, end - start + 1)}`,
-              }}
+              style={{ gridColumn }}
               title={`${block.label}: ${formatDate(block.startDate)}–${formatDate(block.endDate)}`}
             >
               <strong>{block.label}</strong>
@@ -216,6 +401,7 @@ export function buildSeasonMatrixRows(props: SeasonMatrixProps): MatrixRow[] {
       label: track.name,
       eyebrow: "Events",
       kind: "events" as const,
+      context: { trackId: track.id },
       blocks: props.events
         .filter((event) => event.trackId === track.id)
         .map((event) => ({
@@ -270,6 +456,7 @@ export function buildSeasonMatrixRows(props: SeasonMatrixProps): MatrixRow[] {
       label: dimension?.name ?? titleCase(code),
       eyebrow: "Fokus",
       kind: "focus",
+      context: dimension ? { dimensionId: dimension.id } : undefined,
       blocks: dimension
         ? props.focusSegments
             .filter((segment) => segment.dimensionId === dimension.id)
@@ -320,6 +507,58 @@ function weekIndexForDate(weeks: SeasonMatrixWeek[], date: string): number {
   );
   if (index >= 0) return index;
   return date < weeks[0].startDate ? 0 : weeks.length - 1;
+}
+
+function kindForRow(
+  kind: MatrixRow["kind"],
+):
+  | "event"
+  | "constraint"
+  | "macrocycle"
+  | "mesocycle"
+  | "focusSegment"
+  | "microcycle"
+  | null {
+  switch (kind) {
+    case "events":
+      return "event";
+    case "constraints":
+      return "constraint";
+    case "macro":
+      return "macrocycle";
+    case "focus":
+      return "focusSegment";
+    case "meso":
+      return "mesocycle";
+    case "rpe":
+      return "microcycle";
+  }
+}
+
+function entityForBlock(
+  kind: MatrixRow["kind"],
+  blockId: string,
+  props: SeasonMatrixProps,
+): MatrixEditingEntity | null {
+  switch (kind) {
+    case "events":
+      return props.events.find((event) => event.id === blockId) ?? null;
+    case "constraints":
+      return (
+        props.constraints.find((constraint) => constraint.id === blockId) ??
+        null
+      );
+    case "macro":
+      return props.macrocycles.find((cycle) => cycle.id === blockId) ?? null;
+    case "focus":
+      return (
+        props.focusSegments.find((segment) => segment.id === blockId) ?? null
+      );
+    case "meso":
+      return props.mesocycles.find((cycle) => cycle.id === blockId) ?? null;
+    case "rpe":
+      return props.microcycles.find((cycle) => cycle.id === blockId) ?? null;
+  }
 }
 
 function rpeBand(rpe: number): string {

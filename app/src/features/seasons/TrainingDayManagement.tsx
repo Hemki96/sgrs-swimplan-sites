@@ -3,6 +3,7 @@ import { ZodError } from "zod";
 
 import type { Season, TrainingDay } from "../../lib/domain/types";
 import type { SeasonPlanningService } from "../../lib/domain/seasonPlanning";
+import type { UndoRequest } from "../../lib/domain/history";
 import {
   trainingDayInputSchema,
   type TrainingDayInput,
@@ -30,7 +31,7 @@ export function TrainingDayManagement({
   days: TrainingDay[];
   service: SeasonPlanningService;
   onChange: () => Promise<void>;
-  onNotice: (message: string) => void;
+  onNotice: (message: string, undo?: UndoRequest) => void;
 }) {
   const [form, setForm] = useState<TrainingDayInput>(blankDay);
   const [editing, setEditing] = useState<TrainingDay | null>(null);
@@ -60,7 +61,10 @@ export function TrainingDayManagement({
   async function remove(day: TrainingDay) {
     try {
       await service.deleteTrainingDay(day);
-      onNotice("Trainingstag wurde gelöscht.");
+      onNotice("Trainingstag wurde gelöscht.", {
+        collection: "training_days",
+        id: day.id,
+      });
       await onChange();
     } catch (error) {
       onNotice(errorMessage(error));

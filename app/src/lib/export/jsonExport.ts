@@ -2,29 +2,10 @@ import type {
   StorageAdapter,
   StorageSnapshot,
 } from "../storage/StorageAdapter";
+import { EXPORT_COLLECTION_KEYS } from "../storage/StorageAdapter";
 import type { Season } from "../domain/types";
 
 export const JSON_EXPORT_SCHEMA_VERSION = "1.0" as const;
-
-const exportKeys = {
-  configuration_values: "configurationValues",
-  seasons: "seasons",
-  event_tracks: "eventTracks",
-  events: "events",
-  calendar_constraints: "calendarConstraints",
-  macrocycles: "macrocycles",
-  mesocycles: "mesocycles",
-  microcycles: "microcycles",
-  microcycle_segments: "microcycleSegments",
-  periodization_dimensions: "periodizationDimensions",
-  focus_definitions: "focusDefinitions",
-  focus_segments: "focusSegments",
-  training_days: "trainingDays",
-  training_sessions: "trainingSessions",
-  equipment_items: "equipmentItems",
-  session_equipment: "sessionEquipment",
-  revisions: "revisions",
-} as const;
 
 export function buildJsonExport(
   snapshot: StorageSnapshot,
@@ -34,7 +15,7 @@ export function buildJsonExport(
     schemaVersion: JSON_EXPORT_SCHEMA_VERSION,
     exportedAt,
   };
-  for (const [collection, key] of Object.entries(exportKeys)) {
+  for (const [collection, key] of Object.entries(EXPORT_COLLECTION_KEYS)) {
     payload[key] = snapshot[collection as keyof StorageSnapshot] ?? [];
   }
   return payload;
