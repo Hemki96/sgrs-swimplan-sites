@@ -145,4 +145,17 @@ describe("seedDemoSeason", () => {
       87,
     );
   });
+
+  it("loads additional demo seasons with independent IDs", async () => {
+    const storage = new InMemoryStorageAdapter();
+    const first = await seedDemoSeason(storage);
+    const second = await seedDemoSeason(storage, {
+      seasonId: "11111111-1111-4111-8111-111111111111",
+      idNamespace: "11111111",
+    });
+    expect(second.season.id).not.toBe(first.season.id);
+    expect(second.events[0].id).not.toBe(first.events[0].id);
+    expect(await storage.list("seasons")).toHaveLength(2);
+    expect(await storage.listRevisions(second.season.id)).toHaveLength(87);
+  });
 });

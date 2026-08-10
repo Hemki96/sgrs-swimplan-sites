@@ -19,6 +19,8 @@ import {
 } from "../../lib/validation/domain";
 import { SeasonPlanning, type PlanningView } from "./SeasonPlanning";
 import { preferredSeason, seasonIdFromPath } from "./seasonNavigation";
+import { SettingsPage } from "../settings/SettingsPage";
+import { ConfigurationService } from "../../lib/domain/configuration";
 
 const emptyInput: SeasonInput = {
   name: "",
@@ -63,6 +65,10 @@ export function SeasonManagement({
   const [message, setMessage] = useState("");
   const [saving, setSaving] = useState(false);
   const [undoSeasonId, setUndoSeasonId] = useState<string | null>(null);
+  const [settingsOpen, setSettingsOpen] = useState(
+    () => location.pathname === "/einstellungen",
+  );
+  const [dynamicStatusLabels, setDynamicStatusLabels] = useState(statusLabels);
   const firstInvalid = useRef<HTMLInputElement | null>(null);
 
   const selected = seasons.find((season) => season.id === selectedId);
@@ -113,6 +119,18 @@ export function SeasonManagement({
   }, [initialSeasonId, selectedId, service, storage]);
 
   useEffect(() => {
+    const configuration = new ConfigurationService(storage);
+    void configuration.ensureDefaults().then((values) => {
+      const next = { ...statusLabels };
+      for (const value of values) {
+        if (value.group === "season_status" && value.code in next)
+          next[value.code as SeasonStatus] = value.label;
+      }
+      setDynamicStatusLabels(next);
+    });
+  }, [storage]);
+
+  useEffect(() => {
     const onPopState = () =>
       setSelectedId(seasonIdFromPath(location.pathname) ?? null);
     window.addEventListener("popstate", onPopState);
@@ -136,12 +154,24 @@ export function SeasonManagement({
   }, [message]);
 
   function choose(season: Season) {
+    setSettingsOpen(false);
     setSelectedId(season.id);
     setView(
       window.matchMedia("(min-width: 64rem)").matches ? "matrix" : "week",
     );
     window.history.pushState({}, "", `/saisons/${season.id}`);
   }
+  function openSettings() {
+    setSettingsOpen(true);
+    window.history.pushState({}, "", "/einstellungen");
+  }
+  function closeSettings() {
+    setSettingsOpen(false);
+    const next = selected ?? preferredSeason(seasons);
+    window.history.pushState({}, "", next ? `/saisons/${next.id}` : "/");
+  }
+  if (settingsOpen)
+    return <SettingsPage storage={storage} close={closeSettings} />;
   function openCreate() {
     setEditing(null);
     setForm(emptyInput);
@@ -231,6 +261,9 @@ export function SeasonManagement({
           </div>
         </div>
         <div className="topbar-actions">
+          <button className="button quiet" onClick={openSettings}>
+            Einstellungen
+          </button>
           <button
             className="button quiet"
             disabled={!seasons.length}
@@ -259,6 +292,7 @@ export function SeasonManagement({
           setForm={setForm}
           errors={errors}
           editing={editing}
+          statusOptions={dynamicStatusLabels}
           saving={saving}
           firstInvalid={firstInvalid}
           submit={submit}
@@ -337,7 +371,7 @@ export function SeasonManagement({
                   >
                     <span className="sr-only">Planung öffnen</span>
                     <span className={`status status-${season.status}`}>
-                      {statusLabels[season.status]}
+                      {dynamicStatusLabels[season.status]}
                     </span>
                     <strong>{season.name}</strong>
                     <small>
@@ -385,7 +419,7 @@ export function SeasonManagement({
                 <header className="workspace-header">
                   <div>
                     <span className={`status status-${selected.status}`}>
-                      {statusLabels[selected.status]}
+                      {dynamicStatusLabels[selected.status]}
                     </span>
                     <h1>{selected.name}</h1>
                     <p>
@@ -444,6 +478,7 @@ function SeasonEditor({
   setForm,
   errors,
   editing,
+  statusOptions,
   saving,
   firstInvalid,
   submit,
@@ -453,6 +488,7 @@ function SeasonEditor({
   setForm: (value: SeasonInput) => void;
   errors: Record<string, string>;
   editing: Season | null;
+  statusOptions: Record<SeasonStatus, string>;
   saving: boolean;
   firstInvalid: React.RefObject<HTMLInputElement | null>;
   submit: (event: FormEvent) => void;
@@ -545,7 +581,7 @@ function SeasonEditor({
                   setForm({ ...form, status: e.target.value as SeasonStatus })
                 }
               >
-                {Object.entries(statusLabels).map(([value, label]) => (
+                {Object.entries(statusOptions).map(([value, label]) => (
                   <option key={value} value={value}>
                     {label}
                   </option>

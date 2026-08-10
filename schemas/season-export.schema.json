@@ -1,21 +1,47 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "SGRS SwimPlan Export",
+  "title": "SGRS SwimPlan Gesamtexport",
   "type": "object",
-  "required": [
-    "schemaVersion",
-    "exportedAt",
-    "season"
-  ],
+  "required": ["schemaVersion", "exportedAt", "configurationValues", "seasons"],
   "properties": {
-    "schemaVersion": {
-      "const": "1.0"
+    "schemaVersion": { "const": 2 },
+    "exportedAt": { "type": "string", "format": "date-time" },
+    "configurationValues": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/versioned" }
     },
-    "exportedAt": {
-      "type": "string"
+    "seasons": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/versioned" },
+      "minItems": 1
     },
-    "season": {
-      "type": "object"
+    "eventTracks": { "type": "array" },
+    "events": { "type": "array" },
+    "calendarConstraints": { "type": "array" },
+    "macrocycles": { "type": "array" },
+    "mesocycles": { "type": "array" },
+    "microcycles": { "type": "array" },
+    "microcycleSegments": { "type": "array" },
+    "periodizationDimensions": { "type": "array" },
+    "focusDefinitions": { "type": "array" },
+    "focusSegments": { "type": "array" },
+    "trainingDays": { "type": "array" },
+    "trainingSessions": { "type": "array" },
+    "equipmentItems": { "type": "array" },
+    "sessionEquipment": { "type": "array" },
+    "revisions": { "type": "array" }
+  },
+  "$defs": {
+    "versioned": {
+      "type": "object",
+      "required": ["id", "version"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "version": { "type": "integer", "minimum": 0 },
+        "deletedAt": { "type": ["string", "null"] }
+      },
+      "additionalProperties": true
     }
-  }
+  },
+  "additionalProperties": false
 }

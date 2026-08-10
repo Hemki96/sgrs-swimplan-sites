@@ -45,6 +45,7 @@ type RevisionOptions = {
 };
 
 const collections = new Set([
+  "configuration_values",
   "seasons",
   "event_tracks",
   "events",
@@ -94,6 +95,9 @@ function seasonIdFor(
 ) {
   const seasonId =
     options.revision?.seasonId ??
+    (collection === "configuration_values"
+      ? "__global_configuration__"
+      : undefined) ??
     (collection === "seasons" ? entity.id : entity.seasonId);
   if (!seasonId)
     throw new Error(
@@ -295,6 +299,68 @@ async function storageRequest(request: Request, env: Env): Promise<Response> {
       (snapshot[row.collection] ??= []).push(JSON.parse(row.data));
     }
     return json(snapshot);
+  }
+  if (request.method === "POST" && collection === "import") {
+    const { snapshot } = (await request.json()) as {
+      snapshot: Record<string, StoredEntity[]>;
+    };
+    const statements: D1Statement[] = [];
+    const now = new Date().toISOString();
+    for (const [name, entities] of Object.entries(snapshot)) {
+      if (!collections.has(name) || name === "revisions") continue;
+      for (const entity of entities ?? []) {
+        const scope =
+          name === "configuration_values"
+            ? "__global_configuration__"
+            : name === "seasons"
+              ? entity.id
+              : entity.seasonId;
+        if (!scope)
+          return json({ error: `Missing season scope for ${name}` }, 400);
+        const current = await currentEntity(env.DB, name, entity.id);
+        if (current && current.version !== entity.version)
+          return conflict(entity.version, current.version);
+        if (!current && entity.version !== 0)
+          return conflict(entity.version, null);
+        const next = { ...entity, version: (current?.version ?? 0) + 1 };
+        const revision = {
+          id: crypto.randomUUID(),
+          seasonId: scope,
+          revisionNumber: 0,
+          timestamp: now,
+          operation: "import",
+          entityType: name,
+          entityId: entity.id,
+          beforeJson: null,
+          afterJson: next,
+          editorLabel: "json-import",
+        };
+        statements.push(
+          env.DB.prepare(
+            `INSERT INTO storage_entities (collection, id, season_id, version, deleted_at, data)
+               VALUES (?, ?, ?, ?, ?, ?)
+               ON CONFLICT (collection, id) DO UPDATE SET
+                 season_id = excluded.season_id, version = excluded.version,
+                 deleted_at = excluded.deleted_at, data = excluded.data`,
+          ).bind(
+            name,
+            entity.id,
+            scope,
+            next.version,
+            entity.deletedAt ?? null,
+            JSON.stringify(next),
+          ),
+          env.DB.prepare(
+            `INSERT INTO storage_entities (collection, id, season_id, version, deleted_at, data)
+               VALUES ('revisions', ?, ?, NULL, NULL,
+                 json_set(?, '$.revisionNumber', COALESCE((SELECT MAX(CAST(json_extract(data, '$.revisionNumber') AS INTEGER))
+                 FROM storage_entities WHERE collection = 'revisions' AND season_id = ?), 0) + 1))`,
+          ).bind(revision.id, scope, JSON.stringify(revision), scope),
+        );
+      }
+    }
+    if (statements.length) await env.DB.batch(statements);
+    return new Response(null, { status: 204 });
   }
   if (!collection || !collections.has(collection))
     return json({ error: "Unknown collection" }, 404);

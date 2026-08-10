@@ -24,6 +24,101 @@
 body {
   margin: 0;
 }
+.settings-page {
+  width: min(100% - 2rem, 72rem);
+  margin-inline: auto;
+  padding: 2rem 0 5rem;
+}
+.settings-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 2rem;
+  margin-bottom: 2rem;
+}
+.settings-panel {
+  margin-top: 1.5rem;
+  padding: 1.5rem;
+  border: 1px solid var(--color-border);
+  border-radius: 1rem;
+  background: var(--color-surface);
+  box-shadow: 0 12px 35px rgba(15, 41, 64, 0.06);
+}
+.settings-panel h2 {
+  margin: 0;
+}
+.settings-group {
+  max-width: 28rem;
+  margin: 1.25rem 0;
+}
+.configuration-list {
+  display: grid;
+  gap: 0.65rem;
+}
+.configuration-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.9rem;
+  border: 1px solid var(--color-border);
+  border-radius: 0.75rem;
+}
+.configuration-row.inactive {
+  opacity: 0.62;
+}
+.configuration-row > div:first-child {
+  display: grid;
+  gap: 0.25rem;
+}
+.configuration-row code {
+  color: var(--color-muted);
+}
+.row-actions,
+.settings-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+.file-button {
+  position: relative;
+  overflow: hidden;
+}
+.file-button input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+.import-preview,
+.demo-preview {
+  margin: 1rem 0;
+  padding: 1rem;
+  border-radius: 0.75rem;
+  background: var(--color-soft);
+}
+.demo-preview {
+  display: grid;
+  gap: 0.35rem;
+}
+.check-field {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 650;
+}
+@media (max-width: 48rem) {
+  .settings-header {
+    display: grid;
+  }
+  .configuration-row {
+    grid-template-columns: 1fr;
+  }
+  .configuration-row > span {
+    font-size: 0.85rem;
+    color: var(--color-muted);
+  }
+}
 button,
 input,
 textarea,

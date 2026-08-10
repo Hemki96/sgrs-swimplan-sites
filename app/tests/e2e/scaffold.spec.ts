@@ -68,6 +68,61 @@ test("shows the official SGRS brand without responsive overflow", async ({
   }
 });
 
+test("manages settings and confirms a previewed JSON import", async ({
+  page,
+}) => {
+  await page.goto("/einstellungen");
+  await expect(
+    page.getByRole("heading", { level: 1, name: "Einstellungen" }),
+  ).toBeVisible();
+
+  await page.getByRole("button", { name: "Wert hinzufügen" }).click();
+  const code = `STATUS_${runId.toUpperCase()}`;
+  await page.getByLabel("Code").fill(code);
+  await page.getByLabel("Label").fill(`Teststatus ${runId}`);
+  await page.getByRole("button", { name: "Speichern" }).click();
+  await expect(page.getByText(`Teststatus ${runId}`)).toBeVisible();
+
+  const importSeason = {
+    id: `import-${runId}`,
+    name: `Import-Saison ${runId}`,
+    startDate: "2026-08-01",
+    endDate: "2027-07-31",
+    description: "Importvorschau",
+    mainGoal: "Roundtrip",
+    status: "draft",
+    createdAt: "2026-08-10T10:00:00.000Z",
+    updatedAt: "2026-08-10T10:00:00.000Z",
+    version: 1,
+  };
+  await page.locator('input[type="file"]').setInputFiles({
+    name: "season.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(
+      JSON.stringify({
+        schemaVersion: 2,
+        exportedAt: "2026-08-10T10:00:00.000Z",
+        configurationValues: [],
+        seasons: [importSeason],
+      }),
+    ),
+  });
+  await expect(
+    page.getByRole("heading", { level: 3, name: "Importvorschau" }),
+  ).toBeVisible();
+  await page
+    .getByRole("button", { name: "Import verbindlich anwenden" })
+    .click();
+  await expect(
+    page.getByText("Saison wurde als neue Planung importiert."),
+  ).toBeVisible();
+
+  await page.setViewportSize({ width: 320, height: 900 });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(
+    320,
+  );
+});
+
 test("creates, edits and soft deletes a season", async ({ page }) => {
   await page.goto("/");
 

@@ -8,12 +8,13 @@ describe("JSON export", () => {
       "2026-08-09T14:00:00.000Z",
     );
     expect(payload).toMatchObject({
-      schemaVersion: 1,
+      schemaVersion: 2,
       exportedAt: "2026-08-09T14:00:00.000Z",
       seasons: [{ id: "season-1", version: 1 }],
       eventTracks: [],
       trainingSessions: [],
       revisions: [],
+      configurationValues: [],
     });
   });
 });

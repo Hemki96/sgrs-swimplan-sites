@@ -97,6 +97,8 @@ const equipmentSeeds = [
 
 export interface SeedDemoSeasonOptions {
   timestamp?: string;
+  seasonId?: string;
+  idNamespace?: string;
 }
 
 export interface SeedDemoSeasonResult {
@@ -122,10 +124,13 @@ export async function seedDemoSeason(
   options: SeedDemoSeasonOptions = {},
 ): Promise<SeedDemoSeasonResult> {
   const timestamp = options.timestamp ?? new Date().toISOString();
-  const revision = { seasonId: DEMO_SEASON_ID, editorLabel: "demo-seed" };
+  const seasonId = options.seasonId ?? DEMO_SEASON_ID;
+  const idNamespace = options.idNamespace ?? "00000000";
+  const makeSeedId = (value: number): string => seedId(value, idNamespace);
+  const revision = { seasonId, editorLabel: "demo-seed" };
 
   const season = await storage.put<Season>("seasons", {
-    id: DEMO_SEASON_ID,
+    id: seasonId,
     name: "Saison 2026/27",
     startDate: "2026-08-01",
     endDate: "2027-07-31",
@@ -143,7 +148,7 @@ export async function seedDemoSeason(
       await storage.put(
         "periodization_dimensions",
         {
-          id: seedId(100 + index),
+          id: makeSeedId(100 + index),
           seasonId: season.id,
           name: seed.name,
           code: seed.code,
@@ -169,7 +174,7 @@ export async function seedDemoSeason(
       await storage.put(
         "focus_definitions",
         {
-          id: seedId(200 + index),
+          id: makeSeedId(200 + index),
           seasonId: season.id,
           dimensionId: dimension.id,
           name: seed.name,
@@ -188,7 +193,7 @@ export async function seedDemoSeason(
       await storage.put(
         "equipment_items",
         {
-          id: seedId(300 + index),
+          id: makeSeedId(300 + index),
           seasonId: season.id,
           name: seed.name,
           code: seed.code,
@@ -208,7 +213,7 @@ export async function seedDemoSeason(
 
   const eventTracks = await Promise.all([
     put<EventTrack>("event_tracks", {
-      id: seedId(400),
+      id: makeSeedId(400),
       seasonId: season.id,
       name: "Hauptwettkämpfe",
       sortOrder: 0,
@@ -216,7 +221,7 @@ export async function seedDemoSeason(
       version: 0,
     }),
     put<EventTrack>("event_tracks", {
-      id: seedId(401),
+      id: makeSeedId(401),
       seasonId: season.id,
       name: "Testwettkämpfe",
       sortOrder: 1,
@@ -226,7 +231,7 @@ export async function seedDemoSeason(
   ]);
   const events = await Promise.all([
     put<Event>("events", {
-      id: seedId(410),
+      id: makeSeedId(410),
       seasonId: season.id,
       trackId: eventTracks[1].id,
       name: "Herbst-Test",
@@ -240,7 +245,7 @@ export async function seedDemoSeason(
       version: 0,
     }),
     put<Event>("events", {
-      id: seedId(411),
+      id: makeSeedId(411),
       seasonId: season.id,
       trackId: eventTracks[0].id,
       name: "Winter-Meisterschaft",
@@ -254,7 +259,7 @@ export async function seedDemoSeason(
       version: 0,
     }),
     put<Event>("events", {
-      id: seedId(412),
+      id: makeSeedId(412),
       seasonId: season.id,
       trackId: eventTracks[0].id,
       name: "Sommer-Meisterschaft",
@@ -270,7 +275,7 @@ export async function seedDemoSeason(
   ]);
   const calendarConstraints = await Promise.all([
     put<CalendarConstraint>("calendar_constraints", {
-      id: seedId(420),
+      id: makeSeedId(420),
       seasonId: season.id,
       type: "Ferien",
       name: "Herbstferien",
@@ -281,7 +286,7 @@ export async function seedDemoSeason(
       version: 0,
     }),
     put<CalendarConstraint>("calendar_constraints", {
-      id: seedId(421),
+      id: makeSeedId(421),
       seasonId: season.id,
       type: "Badschließung",
       name: "Weihnachtspause",
@@ -295,7 +300,7 @@ export async function seedDemoSeason(
 
   const macrocycles = await Promise.all([
     put<Macrocycle>("macrocycles", {
-      id: seedId(500),
+      id: makeSeedId(500),
       seasonId: season.id,
       name: "Grundlagenaufbau",
       startDate: "2026-08-03",
@@ -305,7 +310,7 @@ export async function seedDemoSeason(
       version: 0,
     }),
     put<Macrocycle>("macrocycles", {
-      id: seedId(501),
+      id: makeSeedId(501),
       seasonId: season.id,
       name: "Spezifischer Aufbau",
       startDate: "2026-09-14",
@@ -347,7 +352,7 @@ export async function seedDemoSeason(
   for (const [id, macroIndex, name, startDate, endDate, goal] of mesoSeeds) {
     mesocycles.push(
       await put<Mesocycle>("mesocycles", {
-        id: seedId(id),
+        id: makeSeedId(id),
         macrocycleId: macrocycles[macroIndex].id,
         name,
         startDate,
@@ -370,7 +375,7 @@ export async function seedDemoSeason(
     const end = new Date(start);
     end.setUTCDate(end.getUTCDate() + 6);
     const microcycle = await put<Microcycle>("microcycles", {
-      id: seedId(600 + index),
+      id: makeSeedId(600 + index),
       mesocycleId: mesocycles[Math.floor(index / 3)].id,
       name: `KW ${32 + index}`,
       startDate: isoDate(start),
@@ -386,7 +391,7 @@ export async function seedDemoSeason(
     microcycles.push(microcycle);
     microcycleSegments.push(
       await put<MicrocycleSegment>("microcycle_segments", {
-        id: seedId(700 + index),
+        id: makeSeedId(700 + index),
         microcycleId: microcycle.id,
         name: index === 11 ? "Taper" : index % 3 === 2 ? "Belastung" : "Aufbau",
         startDate: microcycle.startDate,
@@ -414,7 +419,7 @@ export async function seedDemoSeason(
     const focus = focusByCode.get(code)!;
     focusSegments.push(
       await put<FocusSegment>("focus_segments", {
-        id: seedId(800 + index),
+        id: makeSeedId(800 + index),
         seasonId: season.id,
         dimensionId: focus.dimensionId,
         focusDefinitionId: focus.id,
@@ -436,7 +441,7 @@ export async function seedDemoSeason(
   for (const [id, date, dayContext, notes] of daySeeds) {
     trainingDays.push(
       await put<TrainingDay>("training_days", {
-        id: seedId(id),
+        id: makeSeedId(id),
         seasonId: season.id,
         date,
         dayContext,
@@ -528,7 +533,7 @@ export async function seedDemoSeason(
   ] of sessionSeeds) {
     trainingSessions.push(
       await put<TrainingSession>("training_sessions", {
-        id: seedId(id),
+        id: makeSeedId(id),
         trainingDayId: trainingDays[dayIndex].id,
         title,
         startTime,
@@ -549,21 +554,21 @@ export async function seedDemoSeason(
   );
   const sessionEquipment = await Promise.all([
     put<SessionEquipment>("session_equipment", {
-      id: seedId(950),
+      id: makeSeedId(950),
       sessionId: trainingSessions[2].id,
       equipmentId: equipmentByCode.get("PADDLES")!.id,
       requirementLevel: "required",
       version: 0,
     }),
     put<SessionEquipment>("session_equipment", {
-      id: seedId(951),
+      id: makeSeedId(951),
       sessionId: trainingSessions[2].id,
       equipmentId: equipmentByCode.get("PULSSENSOR")!.id,
       requirementLevel: "recommended",
       version: 0,
     }),
     put<SessionEquipment>("session_equipment", {
-      id: seedId(952),
+      id: makeSeedId(952),
       sessionId: trainingSessions[3].id,
       equipmentId: equipmentByCode.get("KURZFLOSSEN")!.id,
       requirementLevel: "required",
@@ -590,8 +595,8 @@ export async function seedDemoSeason(
   };
 }
 
-function seedId(value: number): string {
-  return `00000000-0000-4000-8000-${value.toString().padStart(12, "0")}`;
+function seedId(value: number, namespace: string): string {
+  return `${namespace.slice(0, 8).padEnd(8, "0")}-0000-4000-8000-${value.toString().padStart(12, "0")}`;
 }
 
 function isoDate(date: Date): string {

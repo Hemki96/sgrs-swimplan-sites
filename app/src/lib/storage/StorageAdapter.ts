@@ -1,6 +1,7 @@
 import type { Id, Revision } from "../domain/types";
 
 export const STORAGE_COLLECTIONS = [
+  "configuration_values",
   "seasons",
   "event_tracks",
   "events",
@@ -64,6 +65,10 @@ export interface StorageAdapter {
     options: SoftDeleteOptions,
   ): Promise<void>;
   listRevisions(seasonId: Id): Promise<Revision[]>;
+  listGlobalRevisions(): Promise<Revision[]>;
   exportAll(): Promise<StorageSnapshot>;
   hydrate(snapshot: StorageSnapshot): Promise<void>;
+  applyImport(snapshot: StorageSnapshot): Promise<void>;
 }
+
+export const GLOBAL_REVISION_SCOPE_ID = "__global_configuration__";

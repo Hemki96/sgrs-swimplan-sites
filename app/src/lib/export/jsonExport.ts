@@ -4,6 +4,7 @@ import type {
 } from "../storage/StorageAdapter";
 
 const exportKeys = {
+  configuration_values: "configurationValues",
   seasons: "seasons",
   event_tracks: "eventTracks",
   events: "events",
@@ -26,7 +27,7 @@ export function buildJsonExport(
   snapshot: StorageSnapshot,
   exportedAt = new Date().toISOString(),
 ) {
-  const payload: Record<string, unknown> = { schemaVersion: 1, exportedAt };
+  const payload: Record<string, unknown> = { schemaVersion: 2, exportedAt };
   for (const [collection, key] of Object.entries(exportKeys)) {
     payload[key] = snapshot[collection as keyof StorageSnapshot] ?? [];
   }

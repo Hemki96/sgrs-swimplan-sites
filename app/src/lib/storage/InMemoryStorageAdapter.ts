@@ -8,6 +8,7 @@ import type {
   StorageSnapshot,
   StoredEntity,
 } from "./StorageAdapter";
+import { GLOBAL_REVISION_SCOPE_ID } from "./StorageAdapter";
 
 type MutableCollection = Map<Id, unknown>;
 type MutableStore = Map<StorageCollection, MutableCollection>;
@@ -127,6 +128,10 @@ export class InMemoryStorageAdapter implements StorageAdapter {
       .sort((left, right) => left.revisionNumber - right.revisionNumber);
   }
 
+  listGlobalRevisions(): Promise<Revision[]> {
+    return this.listRevisions(GLOBAL_REVISION_SCOPE_ID);
+  }
+
   async exportAll(): Promise<StorageSnapshot> {
     return Object.fromEntries(
       [...this.data.entries()].map(([collection, entities]) => [
@@ -151,6 +156,37 @@ export class InMemoryStorageAdapter implements StorageAdapter {
       );
     }
     this.data = next;
+  }
+
+  async applyImport(snapshot: StorageSnapshot): Promise<void> {
+    const backup = await this.exportAll();
+    try {
+      for (const [collection, entities] of Object.entries(snapshot)) {
+        if (!entities || collection === "revisions") continue;
+        for (const entity of entities) {
+          const stored = entity as StoredEntity & { seasonId?: string };
+          await this.put(
+            collection as Exclude<StorageCollection, "revisions">,
+            stored,
+            {
+              expectedVersion: stored.version,
+              revision: {
+                seasonId:
+                  collection === "configuration_values"
+                    ? GLOBAL_REVISION_SCOPE_ID
+                    : collection === "seasons"
+                      ? stored.id
+                      : stored.seasonId!,
+                editorLabel: "json-import",
+              },
+            },
+          );
+        }
+      }
+    } catch (error) {
+      await this.hydrate(backup);
+      throw error;
+    }
   }
 
   private collection(collection: StorageCollection): MutableCollection {
@@ -218,6 +254,9 @@ export class InMemoryStorageAdapter implements StorageAdapter {
     options: PutOptions,
   ): Id {
     if (options.revision?.seasonId) return options.revision.seasonId;
+    if (collection === "configuration_values") {
+      return GLOBAL_REVISION_SCOPE_ID;
+    }
     if (collection === "seasons") return entity.id;
     if ("seasonId" in entity && typeof entity.seasonId === "string") {
       return entity.seasonId;

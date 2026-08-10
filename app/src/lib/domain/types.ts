@@ -7,6 +7,30 @@ export type RequirementLevel = "required" | "recommended" | "optional";
 export type EventPriority = "A" | "B" | "C" | "test";
 export type SeasonStatus = "draft" | "active" | "completed" | "archived";
 
+export const configurationGroups = [
+  "season_status",
+  "event_priority",
+  "event_category",
+  "calendar_constraint_type",
+  "calendar_constraint_severity",
+  "microcycle_segment_type",
+  "requirement_level",
+  "periodization_dimension",
+  "focus_definition",
+  "equipment",
+] as const;
+export type ConfigurationGroup = (typeof configurationGroups)[number];
+
+export interface ConfigurationValue extends SoftDeletableEntity {
+  group: ConfigurationGroup;
+  code: string;
+  label: string;
+  description?: string;
+  sortOrder: number;
+  active: boolean;
+  parentCode?: string;
+}
+
 export interface VersionedEntity {
   id: Id;
   version: number;

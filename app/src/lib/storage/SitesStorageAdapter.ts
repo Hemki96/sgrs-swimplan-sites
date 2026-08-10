@@ -9,6 +9,7 @@ import type {
   StorageSnapshot,
   StoredEntity,
 } from "./StorageAdapter";
+import { GLOBAL_REVISION_SCOPE_ID } from "./StorageAdapter";
 
 export class SitesStorageAdapter implements StorageAdapter {
   constructor(private readonly apiBase = "/api/storage") {}
@@ -74,6 +75,10 @@ export class SitesStorageAdapter implements StorageAdapter {
     return this.request(`/revisions?seasonId=${encodeURIComponent(seasonId)}`);
   }
 
+  listGlobalRevisions(): Promise<Revision[]> {
+    return this.listRevisions(GLOBAL_REVISION_SCOPE_ID);
+  }
+
   exportAll(): Promise<StorageSnapshot> {
     return this.request("/export");
   }
@@ -83,5 +88,12 @@ export class SitesStorageAdapter implements StorageAdapter {
     throw new Error(
       "Sites import requires the validated preview and confirmation flow.",
     );
+  }
+
+  applyImport(snapshot: StorageSnapshot): Promise<void> {
+    return this.request("/import", {
+      method: "POST",
+      body: JSON.stringify({ snapshot }),
+    });
   }
 }
