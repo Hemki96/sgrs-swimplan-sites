@@ -10,7 +10,7 @@ Nur diese Phase.
 Keine späteren Funktionen vorziehen.
 
 ## Meilensteine
-- [ ] M1: JSON Export
+- [x] M1: JSON Export
 - [ ] M2: JSON Import Preview
 - [ ] M3: Roundtrip Test
 - [ ] M4: Excel Mapping
@@ -20,7 +20,11 @@ Keine späteren Funktionen vorziehen.
 Alle Meilensteine + Quality Gate.
 
 ## Fortschritt
-Noch nicht begonnen.
+
+M1 ist umgesetzt: Der Gesamtexport enthält `schemaVersion`, `exportedAt`, alle
+fachlichen Collections einschließlich Stammdaten und Revisionen. Unit- und
+Browser-Downloadtest sind vorhanden. Import bleibt bis zur validierten Vorschau
+und Bestätigung bewusst gesperrt.
 
 ## Entscheidungen
 Keine.

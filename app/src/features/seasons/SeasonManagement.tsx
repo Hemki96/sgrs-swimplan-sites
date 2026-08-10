@@ -4,6 +4,7 @@ import { ZodError } from "zod";
 import { SeasonService } from "../../lib/domain/seasons";
 import type { Season, SeasonStatus } from "../../lib/domain/types";
 import type { StorageAdapter } from "../../lib/storage/StorageAdapter";
+import { downloadJsonExport } from "../../lib/export/jsonExport";
 import {
   seasonInputSchema,
   type SeasonInput,
@@ -122,9 +123,18 @@ export function SeasonManagement({ storage }: { storage: StorageAdapter }) {
           <h1>Saisonverwaltung</h1>
           <p className="lead">Saisons anlegen, bearbeiten und verwalten.</p>
         </div>
-        <button className="button primary" type="button" onClick={openCreate}>
-          Neue Saison
-        </button>
+        <div className="card-actions">
+          <button
+            className="button quiet"
+            type="button"
+            onClick={() => void downloadJsonExport(storage)}
+          >
+            JSON exportieren
+          </button>
+          <button className="button primary" type="button" onClick={openCreate}>
+            Neue Saison
+          </button>
+        </div>
       </header>
 
       {message && (

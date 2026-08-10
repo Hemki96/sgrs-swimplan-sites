@@ -8,3 +8,6 @@ app/*.tsbuildinfo
 coverage/
 app/playwright-report/
 app/test-results/
+app/.next/
+app/.vinext/
+app/.wrangler/

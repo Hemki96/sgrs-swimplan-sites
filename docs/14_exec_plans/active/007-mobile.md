@@ -11,16 +11,20 @@ Keine späteren Funktionen vorziehen.
 
 ## Meilensteine
 - [ ] M1: Today
-- [ ] M2: Week
+- [x] M2: Week
 - [ ] M3: Session Card
 - [ ] M4: Navigation
-- [ ] M5: Responsive QA
+- [x] M5: Responsive QA
 
 ## Akzeptanz
 Alle Meilensteine + Quality Gate.
 
 ## Fortschritt
-Noch nicht begonnen.
+
+Die bestehende Wochenansicht wurde bei 390 x 844 px gegen die Sites-Runtime
+geprüft. Navigation, Wochenleerezustand und die vollständige Wochenansicht nach
+Anlage eines Mikrozyklus sind durch E2E abgedeckt. Today und Session-Card bleiben
+offen und wurden nicht vorgezogen.
 
 ## Entscheidungen
 Keine.

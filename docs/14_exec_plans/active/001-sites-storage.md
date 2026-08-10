@@ -14,11 +14,11 @@ Keine späteren Funktionen vorziehen.
 
 ## Meilensteine
 
-- [ ] M1: Runtime Capability Check
-- [ ] M2: Runtime ADR
-- [ ] M3: SitesStorageAdapter
-- [ ] M4: Persistence Smoke Test
-- [ ] M5: Concurrency Test
+- [x] M1: Runtime Capability Check
+- [x] M2: Runtime ADR
+- [x] M3: SitesStorageAdapter
+- [x] M4: Persistence Smoke Test
+- [x] M5: Concurrency Test
 
 ## Akzeptanz
 
@@ -100,4 +100,8 @@ und dokumentiert werden. Gemäß ADR 0013 wurden M3 bis M5 nicht begonnen.
 
 ## Abschluss
 
-Offen.
+Am 2026-08-09 mit ADR 0014 abgeschlossen. Die aktuelle Sites-Runtime stellt das
+dokumentierte D1-Binding `DB`, vorbereitete Statements und Batches bereit. Der
+Adapter wurde gegen die lokale Sites-Runtime mit Create/Update/Soft Delete,
+Revisionen, Konfliktabbildung und echtem Seiten-Reload geprüft. Das vollständige
+Quality Gate ist vor dem privaten Deployment erneut auszuführen.

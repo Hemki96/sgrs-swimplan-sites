@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted (Capability Gate; erneute Verifikation nach Provisionierung erforderlich)
+Superseded by ADR 0014
 
 ## Datum
 

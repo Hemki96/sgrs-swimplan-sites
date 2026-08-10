@@ -11,6 +11,9 @@ export default tseslint.config(
       "node_modules",
       "playwright-report",
       "test-results",
+      ".next",
+      ".vinext",
+      ".wrangler",
       "**/* 2.ts",
     ],
   },
@@ -46,5 +49,9 @@ export default tseslint.config(
         { argsIgnorePattern: "^_" },
       ],
     },
+  },
+  {
+    files: ["app/layout.tsx"],
+    rules: { "react-refresh/only-export-components": "off" },
   },
 );

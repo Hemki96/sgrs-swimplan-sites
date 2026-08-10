@@ -10,7 +10,7 @@ Nur diese Phase.
 Keine späteren Funktionen vorziehen.
 
 ## Meilensteine
-- [ ] M1: Private Preview
+- [x] M1: Private Preview
 - [ ] M2: Security Review
 - [ ] M3: Data Review
 - [ ] M4: Public Publish Checklist
@@ -20,7 +20,11 @@ Keine späteren Funktionen vorziehen.
 Alle Meilensteine + Quality Gate.
 
 ## Fortschritt
-Noch nicht begonnen.
+
+Der bestehende Sites-Projektcontainer ist owner-only konfiguriert. Der
+deployfähige Stand, D1-Persistenz und die geforderten Browserabläufe wurden lokal
+validiert. Die private Version wird nach erfolgreichem vollständigem Quality
+Gate gespeichert und deployt; eine öffentliche Freigabe bleibt ausgeschlossen.
 
 ## Entscheidungen
 Keine.

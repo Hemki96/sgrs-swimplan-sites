@@ -1,9 +1,11 @@
+"use client";
+
 import { useState } from "react";
 
 import { SeasonManagement } from "./features/seasons/SeasonManagement";
-import { InMemoryStorageAdapter } from "./lib/storage/InMemoryStorageAdapter";
+import { SitesStorageAdapter } from "./lib/storage/SitesStorageAdapter";
 
 export function App() {
-  const [storage] = useState(() => new InMemoryStorageAdapter());
+  const [storage] = useState(() => new SitesStorageAdapter());
   return <SeasonManagement storage={storage} />;
 }

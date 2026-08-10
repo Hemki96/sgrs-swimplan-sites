@@ -1,6 +1,7 @@
 import {
   useEffect,
   useMemo,
+  useRef,
   useState,
   type FormEvent,
   type ReactNode,
@@ -129,6 +130,7 @@ export function SeasonPlanning({
     [],
   );
   const [notice, setNotice] = useState("");
+  const initializationRef = useRef<Promise<void> | null>(null);
 
   async function reload() {
     const [
@@ -174,9 +176,10 @@ export function SeasonPlanning({
 
   useEffect(() => {
     let active = true;
-    void service
+    initializationRef.current ??= service
       .initializeStandardPeriodization(season.id)
-      .then(() => service.initializeStandardEquipment(season.id))
+      .then(() => service.initializeStandardEquipment(season.id));
+    void initializationRef.current
       .then(() =>
         Promise.all([
           service.listTracks(season.id),
