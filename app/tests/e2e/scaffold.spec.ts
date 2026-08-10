@@ -11,6 +11,50 @@ const seasonNames = {
   persistence: `Persistente Saison ${runId}`,
 };
 
+test("shows the official SGRS brand without responsive overflow", async ({
+  page,
+}) => {
+  await page.goto("/");
+
+  const logo = page.getByRole("img", { name: "Logo der SG Rhein-Sieg" });
+  await expect(logo).toBeVisible();
+  await expect(logo).toHaveAttribute("src", "/brand/sgrs-logo.png");
+  await expect(logo).toHaveAttribute("width", "88");
+  await expect(logo).toHaveAttribute("height", "88");
+  await expect(
+    page.getByRole("heading", { level: 1, name: "Saisonverwaltung" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "JSON exportieren" }),
+  ).toBeVisible();
+  await expect(page.getByRole("button", { name: "Neue Saison" })).toBeVisible();
+
+  for (const width of [320, 375, 768, 1024, 1440]) {
+    await page.setViewportSize({ width, height: 900 });
+    await expect(logo).toBeVisible();
+    const overflow = await page.evaluate(() => ({
+      documentWidth: document.documentElement.scrollWidth,
+      viewportWidth: window.innerWidth,
+      elements: [...document.querySelectorAll<HTMLElement>("body *")]
+        .filter(
+          (element) =>
+            element.getBoundingClientRect().right > window.innerWidth,
+        )
+        .slice(0, 5)
+        .map((element) => ({
+          className: element.className,
+          right: Math.round(element.getBoundingClientRect().right),
+          tagName: element.tagName,
+        })),
+    }));
+    expect(overflow, `${width}px viewport`).toEqual({
+      documentWidth: width,
+      viewportWidth: width,
+      elements: [],
+    });
+  }
+});
+
 test("creates, edits and soft deletes a season", async ({ page }) => {
   await page.goto("/");
 

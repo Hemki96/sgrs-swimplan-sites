@@ -1,5 +1,20 @@
 # Changelog
 
+## 2026-08-10 – Offizielles SGRS-Branding
+
+- Offizielles Logo der SG Rhein-Sieg aus
+  `/Users/christian/Downloads/base_logo_transparent_background.png` transparent
+  zugeschnitten, quadratisch auf 512 Pixel optimiert und als Web-Asset
+  integriert.
+- Responsiver Brandblock im globalen Seitenkopf mit fest reservierter Logogröße
+  und zugänglichem Alternativtext ergänzt.
+- Globale Oberflächenfarben auf semantische Tokens aus dem offiziellen
+  `#0085CA`, dem kontraststarken Aktionsblau `#00689D` und dem tiefen
+  `#0F2940` umgestellt.
+- Semantische Erfolgs-, Fehler-, Warn-, Event- und RPE-Farben beibehalten.
+- Responsive E2E-Abdeckung für 320, 375, 768, 1024 und 1440 Pixel ergänzt und
+  mobile Kartenaktionen gegen horizontalen Überlauf abgesichert.
+
 ## 2026-08-09 – Trainer-Wochenansicht
 
 - Editierbarer Wochenkopf mit KW, Mesozyklus, Target RPE, Target Volume und Wochenziel.
@@ -9,6 +24,7 @@
 - Responsive Pooldeck-Board-Darstellung mit mobilen Tagesbahnen.
 
 ## Unreleased
+
 - Initiales ChatGPT-Sites-Engineering-Repository.
 
 ### M1: React/TypeScript Scaffold (2026-08-09)

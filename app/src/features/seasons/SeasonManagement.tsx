@@ -118,10 +118,18 @@ export function SeasonManagement({ storage }: { storage: StorageAdapter }) {
   return (
     <main className="app-shell">
       <header className="page-header">
-        <div>
-          <p className="eyebrow">SGRS SwimPlan</p>
-          <h1>Saisonverwaltung</h1>
-          <p className="lead">Saisons anlegen, bearbeiten und verwalten.</p>
+        <div className="brand-lockup">
+          <img
+            className="brand-logo"
+            src="/brand/sgrs-logo.png"
+            width="88"
+            height="88"
+            alt="Logo der SG Rhein-Sieg"
+          />
+          <div>
+            <h1>Saisonverwaltung</h1>
+            <p className="lead">Saisons anlegen, bearbeiten und verwalten.</p>
+          </div>
         </div>
         <div className="card-actions">
           <button

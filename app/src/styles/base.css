@@ -1,7 +1,20 @@
 :root {
+  --color-brand: #0085ca;
+  --color-action: #00689d;
+  --color-action-hover: #005f91;
+  --color-deep: #0f2940;
+  --color-background: #f4f9fc;
+  --color-surface: #ffffff;
+  --color-soft: #eaf6fc;
+  --color-soft-strong: #d7eef9;
+  --color-text: #122a3a;
+  --color-muted: #5b6c78;
+  --color-border: #ccdde7;
+  --color-border-strong: #a9c4d3;
+  --color-focus: #0085ca;
   font-family: Inter, ui-sans-serif, system-ui, sans-serif;
-  color: #17211d;
-  background: #f4f7f5;
+  color: var(--color-text);
+  background: var(--color-background);
   font-synthesis: none;
 }
 
@@ -25,14 +38,26 @@ select {
 }
 .page-header {
   display: flex;
-  align-items: flex-end;
+  align-items: center;
   justify-content: space-between;
   gap: 2rem;
   margin-bottom: 2rem;
 }
+.brand-lockup {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  gap: 1.15rem;
+}
+.brand-logo {
+  width: 5.5rem;
+  height: 5.5rem;
+  flex: 0 0 auto;
+  object-fit: contain;
+}
 .eyebrow {
   margin: 0 0 0.5rem;
-  color: #176348;
+  color: var(--color-action);
   font-weight: 750;
   font-size: 0.75rem;
   letter-spacing: 0.12em;
@@ -45,26 +70,35 @@ h1 {
 }
 .lead {
   margin: 0.6rem 0 0;
-  color: #64706a;
+  color: var(--color-muted);
   font-size: 1.05rem;
 }
 
 .button {
-  border: 1px solid #cbd5cf;
+  border: 1px solid var(--color-border-strong);
   border-radius: 0.65rem;
   padding: 0.68rem 0.9rem;
   background: white;
-  color: #203029;
+  color: var(--color-deep);
   cursor: pointer;
   font-weight: 650;
 }
 .button:hover {
-  border-color: #73827a;
+  border-color: var(--color-action);
 }
 .button.primary {
-  background: #176348;
-  border-color: #176348;
+  background: var(--color-action);
+  border-color: var(--color-action);
   color: white;
+}
+.button.primary:hover {
+  background: var(--color-action-hover);
+  border-color: var(--color-action-hover);
+}
+.button:focus-visible,
+a:focus-visible {
+  outline: 3px solid var(--color-focus);
+  outline-offset: 2px;
 }
 .button.quiet {
   background: transparent;
@@ -78,10 +112,10 @@ h1 {
 .panel {
   margin-bottom: 2.5rem;
   padding: 1.4rem;
-  border: 1px solid #dbe2de;
+  border: 1px solid var(--color-border);
   border-radius: 1rem;
   background: white;
-  box-shadow: 0 12px 35px rgba(20, 50, 37, 0.06);
+  box-shadow: 0 12px 35px rgba(15, 41, 64, 0.07);
 }
 .panel-heading,
 .section-heading,
@@ -104,7 +138,7 @@ h1 {
 .field {
   display: grid;
   gap: 0.4rem;
-  color: #34453d;
+  color: var(--color-deep);
   font-weight: 650;
 }
 .field.wide {
@@ -117,15 +151,15 @@ h1 {
   border: 1px solid #bdc9c2;
   border-radius: 0.55rem;
   padding: 0.72rem;
-  color: #17211d;
+  color: var(--color-text);
   background: #fff;
   font-weight: 400;
 }
 .field input:focus,
 .field textarea:focus,
 .field select:focus {
-  outline: 3px solid #bee5d5;
-  border-color: #176348;
+  outline: 3px solid var(--color-focus);
+  border-color: var(--color-action);
 }
 .field-error {
   margin: 0;
@@ -140,8 +174,8 @@ h1 {
 }
 .notice {
   padding: 0.8rem 1rem;
-  color: #164f3a;
-  background: #e5f4ed;
+  color: var(--color-deep);
+  background: var(--color-soft);
   border-radius: 0.65rem;
 }
 
@@ -154,8 +188,8 @@ h1 {
   padding: 0.25rem 0.55rem;
   border-radius: 99px;
   text-align: center;
-  color: #526159;
-  background: #e5ebe7;
+  color: var(--color-muted);
+  background: var(--color-soft-strong);
 }
 .empty-state {
   padding: 3.5rem 1.5rem;
@@ -169,7 +203,7 @@ h1 {
 }
 .empty-state p {
   margin: 0.5rem 0 0;
-  color: #64706a;
+  color: var(--color-muted);
 }
 .season-list {
   display: grid;
@@ -177,7 +211,7 @@ h1 {
 }
 .season-card {
   padding: 1.35rem;
-  border: 1px solid #dbe2de;
+  border: 1px solid var(--color-border);
   border-radius: 0.9rem;
   background: white;
 }
@@ -186,7 +220,7 @@ h1 {
   font-size: 1.35rem;
 }
 .season-card > p {
-  color: #526159;
+  color: var(--color-muted);
 }
 .status {
   display: inline-block;
@@ -207,7 +241,7 @@ h1 {
 }
 .date-range {
   margin: 0;
-  color: #64706a;
+  color: var(--color-muted);
 }
 .card-actions {
   display: flex;
@@ -224,7 +258,7 @@ h1 {
 .planning {
   margin-top: 3rem;
   padding-top: 2.5rem;
-  border-top: 2px solid #ced8d2;
+  border-top: 2px solid var(--color-border);
 }
 .planning-header h2 {
   margin: 0;
@@ -232,18 +266,18 @@ h1 {
 }
 .planning-header p:last-child {
   margin: 0.5rem 0 0;
-  color: #64706a;
+  color: var(--color-muted);
 }
 
 .season-matrix-section {
   --matrix-label-width: 11.75rem;
   --matrix-week-width: 4.5rem;
   margin-top: 2.25rem;
-  border: 1px solid #cad6d0;
+  border: 1px solid var(--color-border-strong);
   border-radius: 1rem;
   overflow: hidden;
   background: #fff;
-  box-shadow: 0 18px 50px rgba(20, 50, 37, 0.08);
+  box-shadow: 0 18px 50px rgba(15, 41, 64, 0.09);
 }
 .matrix-heading {
   display: flex;
@@ -252,11 +286,11 @@ h1 {
   gap: 2rem;
   padding: 1.25rem 1.4rem 1.1rem;
   border-bottom: 1px solid #d9e2dd;
-  background: linear-gradient(100deg, #f8fbf9 0%, #eef7f4 100%);
+  background: linear-gradient(100deg, #f8fbfd 0%, var(--color-soft) 100%);
 }
 .matrix-heading h3 {
   margin: 0;
-  color: #132b22;
+  color: var(--color-deep);
   font-size: 1.6rem;
   letter-spacing: -0.035em;
 }
@@ -282,10 +316,10 @@ h1 {
   width: 0.55rem;
   height: 0.55rem;
   border-radius: 50%;
-  background: #168777;
+  background: var(--color-brand);
 }
 .legend-dot.phase {
-  background: #284b63;
+  background: var(--color-deep);
 }
 .legend-dot.focus {
   background: #e9a23b;
@@ -297,7 +331,7 @@ h1 {
   scrollbar-color: #8fa59a #edf2ef;
 }
 .matrix-scroll:focus-visible {
-  outline: 3px solid #85cbb4;
+  outline: 3px solid var(--color-focus);
   outline-offset: -3px;
 }
 .season-matrix {
@@ -346,7 +380,7 @@ h1 {
   top: 0;
   z-index: 3;
   height: 2.35rem;
-  background: #173f34;
+  background: var(--color-deep);
 }
 .matrix-month {
   display: flex;
@@ -377,7 +411,7 @@ h1 {
   text-align: center;
 }
 .matrix-week strong {
-  color: #173f34;
+  color: var(--color-deep);
   font-size: 0.8rem;
   font-variant-numeric: tabular-nums;
 }
@@ -451,8 +485,8 @@ h1 {
   overflow: hidden;
   border: 1px solid color-mix(in srgb, currentColor 18%, transparent);
   border-radius: 0.42rem;
-  color: #173f34;
-  background: #dcefe8;
+  color: var(--color-deep);
+  background: var(--color-soft-strong);
   white-space: nowrap;
 }
 .matrix-block strong {
@@ -491,7 +525,7 @@ h1 {
 }
 .matrix-block-macro {
   color: #f6fbf8;
-  background: #284b63;
+  background: var(--color-deep);
 }
 .matrix-block-meso {
   color: #244b43;
@@ -548,7 +582,7 @@ h1 {
 .planning-section {
   margin-top: 2.25rem;
   padding: 1.25rem;
-  border: 1px solid #dbe2de;
+  border: 1px solid var(--color-border);
   border-radius: 1rem;
   background: white;
 }
@@ -557,7 +591,7 @@ h1 {
   font-size: 1.3rem;
 }
 .planning-item.key-session {
-  border-left: 0.3rem solid #176348;
+  border-left: 0.3rem solid var(--color-brand);
 }
 .compact-form {
   display: grid;
@@ -619,7 +653,7 @@ h1 {
   gap: 0.25rem;
 }
 .planning-item span {
-  color: #64706a;
+  color: var(--color-muted);
   font-size: 0.9rem;
 }
 
@@ -635,7 +669,7 @@ h1 {
 .equipment-catalog-item,
 .session-card {
   padding: 1rem;
-  border: 1px solid #dbe2de;
+  border: 1px solid var(--color-border);
   border-radius: 0.75rem;
   background: #fff;
 }
@@ -652,7 +686,7 @@ h1 {
 }
 .equipment-catalog-item small,
 .session-card-heading span {
-  color: #64706a;
+  color: var(--color-muted);
 }
 .equipment-catalog-item.inactive {
   opacity: 0.58;
@@ -681,7 +715,7 @@ h1 {
 .equipment-assignment label {
   display: grid;
   gap: 0.3rem;
-  color: #34453d;
+  color: var(--color-deep);
   font-size: 0.85rem;
   font-weight: 650;
 }
@@ -695,11 +729,11 @@ h1 {
 
 /* Trainer week: a pooldeck board — dense, calm and built around seven lanes. */
 .week-view {
-  --ink: #102a35;
+  --ink: var(--color-deep);
   --muted: #667881;
   --line: #d8e2e5;
-  --water: #087f8c;
-  --water-dark: #075d69;
+  --water: var(--color-action);
+  --water-dark: var(--color-deep);
   --lime: #c7ef57;
   margin-top: 2rem;
   color: var(--ink);
@@ -786,7 +820,7 @@ h1 {
   background: var(--water-dark);
 }
 .week-summary .week-number small {
-  color: #bfe3e7;
+  color: #d7eef9;
 }
 .week-number strong {
   font-size: 1.65rem;
@@ -813,7 +847,7 @@ h1 {
 }
 .week-load {
   height: 0.38rem;
-  background: #dcecee;
+  background: var(--color-soft-strong);
 }
 .week-load span {
   display: block;
@@ -862,17 +896,17 @@ h1 {
   place-items: center;
   border-radius: 50%;
   color: var(--water-dark);
-  background: #dcedef;
+  background: var(--color-soft-strong);
   font-size: 0.7rem;
   font-weight: 800;
 }
 .day-context {
   min-height: 4.4rem;
   padding: 0.7rem;
-  border: 1px dashed #a9c4c9;
+  border: 1px dashed var(--color-border-strong);
   border-radius: 0.7rem;
   color: var(--ink);
-  background: #edf6f7;
+  background: var(--color-soft);
   text-align: left;
   cursor: pointer;
 }
@@ -890,7 +924,7 @@ h1 {
   gap: 0.65rem;
   width: 100%;
   padding: 0.8rem;
-  border: 1px solid #cfdee1;
+  border: 1px solid var(--color-border);
   border-radius: 0.8rem;
   color: var(--ink);
   background: #fff;
@@ -962,11 +996,11 @@ h1 {
   font-weight: 800;
 }
 .add-session:hover {
-  background: #e6f1f3;
+  background: var(--color-soft);
 }
 .week-view button:focus-visible,
 .week-view select:focus-visible {
-  outline: 3px solid #8dd8df;
+  outline: 3px solid var(--color-focus);
   outline-offset: 2px;
 }
 .modal-backdrop {
@@ -1057,6 +1091,14 @@ h1 {
     align-items: stretch;
     flex-direction: column;
   }
+  .brand-lockup {
+    align-items: center;
+    gap: 0.85rem;
+  }
+  .brand-logo {
+    width: 4rem;
+    height: 4rem;
+  }
   .page-header .button.primary {
     width: 100%;
   }
@@ -1069,8 +1111,15 @@ h1 {
   .card-actions {
     width: 100%;
   }
+  .season-card-top .card-actions {
+    flex-wrap: wrap;
+  }
   .card-actions .button {
     flex: 1;
+  }
+  .season-card-top .card-actions .button {
+    min-width: 0;
+    flex-basis: calc(50% - 0.25rem);
   }
   .goal {
     grid-template-columns: 1fr;
@@ -1125,6 +1174,13 @@ h1 {
   .editor-grid .wide,
   .key-toggle {
     grid-column: auto;
+  }
+}
+
+@media (max-width: 22rem) {
+  .brand-lockup {
+    align-items: flex-start;
+    flex-direction: column;
   }
 }
 
