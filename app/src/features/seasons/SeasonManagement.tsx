@@ -9,6 +9,7 @@ import {
 import { ZodError } from "zod";
 
 import { downloadJsonExport } from "../../lib/export/jsonExport";
+import { seedDemoSeason } from "../../lib/domain/seedDemoSeason";
 import { SeasonService } from "../../lib/domain/seasons";
 import type { Season, SeasonStatus } from "../../lib/domain/types";
 import type { StorageAdapter } from "../../lib/storage/StorageAdapter";
@@ -81,23 +82,35 @@ export function SeasonManagement({
 
   useEffect(() => {
     let active = true;
-    void service.list().then((rows) => {
-      if (!active) return;
-      const next = sortSeasons(rows);
-      setSeasons(next);
-      setLoaded(true);
-      if (!initialSeasonId && !selectedId) {
-        const preferred = preferredSeason(next);
-        if (preferred) {
-          setSelectedId(preferred.id);
-          window.history.replaceState({}, "", `/saisons/${preferred.id}`);
+    void (async () => {
+      let rows = await service.list();
+      if (rows.length === 0) {
+        try {
+          await seedDemoSeason(storage);
+        } catch {
+          // A parallel first visitor may have created the same stable demo IDs.
+        }
+        rows = await service.list();
+      }
+      if (active) {
+        const next = sortSeasons(rows);
+        setSeasons(next);
+        setLoaded(true);
+        if (!initialSeasonId && !selectedId) {
+          const preferred = preferredSeason(next);
+          if (preferred) {
+            setSelectedId(preferred.id);
+            window.history.replaceState({}, "", `/saisons/${preferred.id}`);
+          }
         }
       }
+    })().catch(() => {
+      if (active) setLoaded(true);
     });
     return () => {
       active = false;
     };
-  }, [initialSeasonId, selectedId, service]);
+  }, [initialSeasonId, selectedId, service, storage]);
 
   useEffect(() => {
     const onPopState = () =>

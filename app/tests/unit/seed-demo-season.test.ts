@@ -39,6 +39,7 @@ describe("seedDemoSeason", () => {
       "Technical",
     ]);
     expect(result.focusDefinitions.map(({ name }) => name)).toEqual([
+      "Functional Strength",
       "Aerobic Base",
       "Aerobic Capacity",
       "Aerobic Power",
@@ -49,6 +50,7 @@ describe("seedDemoSeason", () => {
       "Lactate Tolerance",
       "Race Pace",
       "Sprint",
+      "Race Strategy",
       "Starts",
       "Turns",
       "Underwater",
@@ -65,7 +67,18 @@ describe("seedDemoSeason", () => {
       "Pulssensor",
       "Trinkflasche",
     ]);
-    expect(await storage.listRevisions(DEMO_SEASON_ID)).toHaveLength(30);
+    expect(result.eventTracks).toHaveLength(2);
+    expect(result.events).toHaveLength(3);
+    expect(result.calendarConstraints).toHaveLength(2);
+    expect(result.macrocycles).toHaveLength(2);
+    expect(result.mesocycles).toHaveLength(4);
+    expect(result.microcycles).toHaveLength(12);
+    expect(result.microcycleSegments).toHaveLength(12);
+    expect(result.focusSegments).toHaveLength(6);
+    expect(result.trainingDays).toHaveLength(4);
+    expect(result.trainingSessions).toHaveLength(5);
+    expect(result.sessionEquipment).toHaveLength(3);
+    expect(await storage.listRevisions(DEMO_SEASON_ID)).toHaveLength(87);
     expect(
       (await storage.listRevisions(DEMO_SEASON_ID)).every(
         (revision) => revision.operation === "create",
@@ -86,6 +99,7 @@ describe("seedDemoSeason", () => {
         dimensionById.get(focus.dimensionId),
       ]),
     ).toEqual([
+      ["Functional Strength", "STRENGTH"],
       ["Aerobic Base", "AEROBIC"],
       ["Aerobic Capacity", "AEROBIC"],
       ["Aerobic Power", "AEROBIC"],
@@ -96,6 +110,7 @@ describe("seedDemoSeason", () => {
       ["Lactate Tolerance", "ANAEROBIC"],
       ["Race Pace", "SPEED"],
       ["Sprint", "SPEED"],
+      ["Race Strategy", "TACTICAL"],
       ["Starts", "TECHNICAL"],
       ["Turns", "TECHNICAL"],
       ["Underwater", "TECHNICAL"],
@@ -103,7 +118,7 @@ describe("seedDemoSeason", () => {
     ]);
   });
 
-  it("survives an isolated snapshot reload without adding plan content", async () => {
+  it("survives an isolated snapshot reload with the complete demo plan", async () => {
     const storage = new InMemoryStorageAdapter();
     await seedDemoSeason(storage);
     const reloaded = new InMemoryStorageAdapter();
@@ -115,15 +130,19 @@ describe("seedDemoSeason", () => {
     ).resolves.toHaveLength(6);
     await expect(
       reloaded.list<FocusDefinition>("focus_definitions"),
-    ).resolves.toHaveLength(14);
+    ).resolves.toHaveLength(16);
     await expect(
       reloaded.list<EquipmentItem>("equipment_items"),
     ).resolves.toHaveLength(9);
-    await expect(reloaded.list("events")).resolves.toEqual([]);
-    await expect(reloaded.list("macrocycles")).resolves.toEqual([]);
-    await expect(reloaded.list("training_sessions")).resolves.toEqual([]);
+    await expect(reloaded.list("events")).resolves.toHaveLength(3);
+    await expect(reloaded.list("macrocycles")).resolves.toHaveLength(2);
+    await expect(reloaded.list("mesocycles")).resolves.toHaveLength(4);
+    await expect(reloaded.list("microcycles")).resolves.toHaveLength(12);
+    await expect(reloaded.list("focus_segments")).resolves.toHaveLength(6);
+    await expect(reloaded.list("training_days")).resolves.toHaveLength(4);
+    await expect(reloaded.list("training_sessions")).resolves.toHaveLength(5);
     await expect(reloaded.listRevisions(DEMO_SEASON_ID)).resolves.toHaveLength(
-      30,
+      87,
     );
   });
 });
