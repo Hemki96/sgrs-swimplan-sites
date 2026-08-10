@@ -475,3 +475,31 @@ test("persists after reload and exposes matrix, week, mobile and JSON export", a
     /^sgrs-swimplan-.*\.json$/,
   );
 });
+
+test("shows planning analytics on desktop and mobile", async ({ page }) => {
+  await page.goto("/");
+  await page.getByRole("tab", { name: "Analyse" }).click();
+
+  await expect(
+    page.getByRole("heading", { name: "Saison auf einen Blick" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Wochenverlauf" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Schwerpunktverteilung" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Wettkampf-Timeline" }),
+  ).toBeVisible();
+  await expect(
+    page.getByText("keine Athleten- oder Gesundheitsdaten", { exact: false }),
+  ).toBeVisible();
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(page.locator(".analytics-view")).toBeVisible();
+  await expect(page.locator(".analytics-grid")).toBeVisible();
+  expect(
+    await page.evaluate(() => document.documentElement.scrollWidth),
+  ).toBeLessThanOrEqual(390);
+});

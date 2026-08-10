@@ -5,7 +5,7 @@ import type {
 } from "../storage/StorageAdapter";
 
 export interface ImportDocument {
-  schemaVersion: 1 | 2;
+  schemaVersion: "1.0" | 1 | 2;
   exportedAt: string;
   configurationValues: ConfigurationValue[];
   snapshot: StorageSnapshot;
@@ -49,7 +49,9 @@ export function parseImport(text: string): ImportPreview {
     return emptyPreview(["Die Datei enthält kein gültiges JSON."]);
   }
   const version =
-    raw.schemaVersion === 1 || raw.schemaVersion === 2
+    raw.schemaVersion === "1.0" ||
+    raw.schemaVersion === 1 ||
+    raw.schemaVersion === 2
       ? raw.schemaVersion
       : null;
   if (!version) errors.push("Unbekannte oder fehlende Schema-Version.");
@@ -67,7 +69,7 @@ export function parseImport(text: string): ImportPreview {
       errors.push("Mindestens eine Saison ist unvollständig.");
   }
   const document: ImportDocument = {
-    schemaVersion: version ?? 2,
+    schemaVersion: version ?? "1.0",
     exportedAt: typeof raw.exportedAt === "string" ? raw.exportedAt : "",
     configurationValues: (snapshot.configuration_values ??
       []) as ConfigurationValue[],
@@ -189,7 +191,7 @@ function collectSeasonEntities(
 function emptyPreview(errors: string[]): ImportPreview {
   return {
     document: {
-      schemaVersion: 2,
+      schemaVersion: "1.0",
       exportedAt: "",
       configurationValues: [],
       snapshot: {},

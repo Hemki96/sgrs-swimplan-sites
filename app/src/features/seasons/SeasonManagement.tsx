@@ -57,7 +57,7 @@ export function SeasonManagement({
   const [loaded, setLoaded] = useState(false);
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<"all" | SeasonStatus>("all");
-  const [view, setView] = useState<PlanningView>("matrix");
+  const [view, setView] = useState<PlanningView>("dashboard");
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<Season | null>(null);
   const [form, setForm] = useState<SeasonInput>(emptyInput);
@@ -157,7 +157,7 @@ export function SeasonManagement({
     setSettingsOpen(false);
     setSelectedId(season.id);
     setView(
-      window.matchMedia("(min-width: 64rem)").matches ? "matrix" : "week",
+      window.matchMedia("(min-width: 64rem)").matches ? "dashboard" : "week",
     );
     window.history.pushState({}, "", `/saisons/${season.id}`);
   }
@@ -440,23 +440,33 @@ export function SeasonManagement({
                   aria-label="Planungsbereiche"
                   role="tablist"
                 >
-                  {(["matrix", "week", "data"] as PlanningView[]).map(
-                    (item) => (
-                      <button
-                        key={item}
-                        role="tab"
-                        aria-selected={view === item}
-                        className={view === item ? "active" : ""}
-                        onClick={() => setView(item)}
-                      >
-                        {item === "matrix"
+                  {(
+                    [
+                      "dashboard",
+                      "matrix",
+                      "week",
+                      "analytics",
+                      "data",
+                    ] as PlanningView[]
+                  ).map((item) => (
+                    <button
+                      key={item}
+                      role="tab"
+                      aria-selected={view === item}
+                      className={view === item ? "active" : ""}
+                      onClick={() => setView(item)}
+                    >
+                      {item === "dashboard"
+                        ? "Dashboard"
+                        : item === "matrix"
                           ? "Matrix"
                           : item === "week"
                             ? "Woche"
-                            : "Planungsdaten"}
-                      </button>
-                    ),
-                  )}
+                            : item === "analytics"
+                              ? "Analyse"
+                              : "Planungsdaten"}
+                    </button>
+                  ))}
                 </nav>
                 <SeasonPlanning
                   key={selected.id}

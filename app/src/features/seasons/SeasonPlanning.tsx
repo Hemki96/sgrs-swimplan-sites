@@ -48,6 +48,8 @@ import { PeriodizationManagement } from "./PeriodizationManagement";
 import { TrainingDayManagement } from "./TrainingDayManagement";
 import { SeasonMatrix } from "../season-matrix/SeasonMatrix";
 import { TrainerWeekView } from "../training-week/TrainerWeekView";
+import { Dashboard } from "../dashboard/Dashboard";
+import { SeasonAnalytics } from "../analytics/SeasonAnalytics";
 
 const blankTrack: EventTrackInput = { name: "", sortOrder: 0, visible: true };
 const blankEvent: EventInput = {
@@ -103,7 +105,8 @@ const blankMicrocycleSegment: MicrocycleSegmentInput = {
   sortOrder: 0,
 };
 
-export type PlanningView = "matrix" | "week" | "data";
+export type PlanningView =
+  "dashboard" | "matrix" | "week" | "analytics" | "data";
 
 export function SeasonPlanning({
   season,
@@ -252,6 +255,18 @@ export function SeasonPlanning({
           {notice}
         </p>
       )}
+      {view === "dashboard" && (
+        <Dashboard
+          events={events}
+          macrocycles={macrocycles}
+          mesocycles={mesocycles}
+          microcycles={microcycles}
+          focusDefinitions={focusDefinitions}
+          focusSegments={focusSegments}
+          trainingDays={trainingDays}
+          trainingSessions={trainingSessions}
+        />
+      )}
       {view === "week" && (
         <TrainerWeekView
           season={season}
@@ -276,6 +291,16 @@ export function SeasonPlanning({
           dimensions={dimensions}
           focusDefinitions={focusDefinitions}
           focusSegments={focusSegments}
+        />
+      )}
+      {view === "analytics" && (
+        <SeasonAnalytics
+          season={season}
+          events={events}
+          microcycles={microcycles}
+          focusDefinitions={focusDefinitions}
+          trainingDays={trainingDays}
+          trainingSessions={trainingSessions}
         />
       )}
       {view === "data" && (

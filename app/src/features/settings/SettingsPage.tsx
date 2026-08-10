@@ -115,7 +115,10 @@ export function SettingsPage({
     setBusy(true);
     try {
       const snapshot = buildImportSnapshot(preview, selectedSeason);
-      if (preview.document.schemaVersion === 2) {
+      if (
+        preview.document.schemaVersion === "1.0" ||
+        preview.document.schemaVersion === 2
+      ) {
         const incoming = new Map(
           (snapshot.configuration_values ?? []).map((row) => {
             const value = row as ConfigurationValue;

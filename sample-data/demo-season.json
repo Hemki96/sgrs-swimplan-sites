@@ -1,14 +1,17 @@
 {
   "schemaVersion": "1.0",
   "exportedAt": "2026-08-07T12:00:00Z",
-  "season": {
-    "id": "season-2026-27",
-    "name": "Saison 2026/27",
-    "startDate": "2026-08-17",
-    "endDate": "2027-07-31",
-    "status": "draft",
-    "version": 1
-  },
+  "configurationValues": [],
+  "seasons": [
+    {
+      "id": "season-2026-27",
+      "name": "Saison 2026/27",
+      "startDate": "2026-08-17",
+      "endDate": "2027-07-31",
+      "status": "draft",
+      "version": 1
+    }
+  ],
   "eventTracks": [],
   "events": [],
   "calendarConstraints": [],
@@ -41,5 +44,6 @@
   "trainingDays": [],
   "trainingSessions": [],
   "equipmentItems": [],
-  "sessionEquipment": []
+  "sessionEquipment": [],
+  "revisions": []
 }
