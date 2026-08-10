@@ -112,9 +112,7 @@ test("manages settings and confirms a previewed JSON import", async ({
     updatedAt: "2026-08-10T10:00:00.000Z",
     version: 1,
   };
-  await page
-    .getByRole("button", { name: "JSON-Datei prüfen" })
-    .setInputFiles({
+  await page.getByRole("button", { name: "JSON-Datei prüfen" }).setInputFiles({
     name: "season.json",
     mimeType: "application/json",
     buffer: Buffer.from(
