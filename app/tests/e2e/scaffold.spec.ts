@@ -11,6 +11,18 @@ const seasonNames = {
   persistence: `Persistente Saison ${runId}`,
 };
 
+async function openPlanningData(
+  page: import("@playwright/test").Page,
+  seasonName: string,
+) {
+  await page
+    .getByRole("article")
+    .filter({ hasText: seasonName })
+    .getByRole("button", { name: "Planung öffnen" })
+    .click();
+  await page.getByRole("tab", { name: "Planungsdaten" }).click();
+}
+
 test("shows the official SGRS brand without responsive overflow", async ({
   page,
 }) => {
@@ -38,7 +50,8 @@ test("shows the official SGRS brand without responsive overflow", async ({
       elements: [...document.querySelectorAll<HTMLElement>("body *")]
         .filter(
           (element) =>
-            element.getBoundingClientRect().right > window.innerWidth,
+            element.getBoundingClientRect().right > window.innerWidth &&
+            !element.closest(".matrix-scroll"),
         )
         .slice(0, 5)
         .map((element) => ({
@@ -72,18 +85,25 @@ test("creates, edits and soft deletes a season", async ({ page }) => {
   await page.getByRole("button", { name: "Saison speichern" }).click();
 
   await expect(
-    page.getByRole("heading", { level: 3, name: seasonNames.crud }),
+    page.getByRole("heading", { level: 1, name: seasonNames.crud }),
   ).toBeVisible();
   const seasonCard = page
     .getByRole("article")
     .filter({ hasText: seasonNames.crud });
+  await seasonCard.locator("summary").click();
   await seasonCard.getByRole("button", { name: "Bearbeiten" }).click();
-  await page.getByLabel("Status").selectOption("active");
+  await page
+    .getByRole("dialog")
+    .getByRole("combobox", { name: "Status" })
+    .selectOption("active");
   await page.getByRole("button", { name: "Saison speichern" }).click();
-  await expect(page.getByText("Aktiv")).toBeVisible();
+  await expect(seasonCard.locator(".status")).toHaveText("Aktiv");
 
   page.on("dialog", (dialog) => dialog.accept());
-  await seasonCard.getByRole("button", { name: "Löschen" }).click();
+  const deleteButton = seasonCard.getByRole("button", { name: "Löschen" });
+  if (!(await deleteButton.isVisible()))
+    await seasonCard.locator("summary").click();
+  await deleteButton.click();
   await expect(
     page.getByRole("article").filter({ hasText: seasonNames.crud }),
   ).not.toBeVisible();
@@ -115,11 +135,7 @@ test("manages parallel focus segments across periodization dimensions", async ({
   await page.getByLabel("Beschreibung").fill("Gemeinsame Planung");
   await page.getByLabel("Hauptziel").fill("Meisterschaft");
   await page.getByRole("button", { name: "Saison speichern" }).click();
-  await page
-    .getByRole("article")
-    .filter({ hasText: seasonNames.focus })
-    .getByRole("button", { name: "Planung öffnen" })
-    .click();
+  await openPlanningData(page, seasonNames.focus);
 
   const dimensions = page.getByRole("region", {
     name: "Periodisierungsdimensionen",
@@ -163,11 +179,7 @@ test("manages event tracks, competitions and restrictions", async ({
   await page.getByLabel("Beschreibung").fill("Gemeinsame Planung");
   await page.getByLabel("Hauptziel").fill("Meisterschaft");
   await page.getByRole("button", { name: "Saison speichern" }).click();
-  await page
-    .getByRole("article")
-    .filter({ hasText: seasonNames.event })
-    .getByRole("button", { name: "Planung öffnen" })
-    .click();
+  await openPlanningData(page, seasonNames.event);
 
   await page.getByLabel("Name der Eventspur").fill("WK");
   await page.getByRole("button", { name: "Eventspur anlegen" }).click();
@@ -203,11 +215,7 @@ test("manages a macrocycle inside its season", async ({ page }) => {
   await page.getByLabel("Beschreibung").fill("Gemeinsame Planung");
   await page.getByLabel("Hauptziel").fill("Meisterschaft");
   await page.getByRole("button", { name: "Saison speichern" }).click();
-  await page
-    .getByRole("article")
-    .filter({ hasText: seasonNames.macro })
-    .getByRole("button", { name: "Planung öffnen" })
-    .click();
+  await openPlanningData(page, seasonNames.macro);
 
   const macrocycles = page.getByRole("region", { name: "Makrozyklen" });
   await macrocycles.getByLabel("Name").fill("Grundlagenaufbau");
@@ -242,11 +250,7 @@ test("manages a mesocycle inside its macrocycle", async ({ page }) => {
   await page.getByLabel("Beschreibung").fill("Gemeinsame Planung");
   await page.getByLabel("Hauptziel").fill("Meisterschaft");
   await page.getByRole("button", { name: "Saison speichern" }).click();
-  await page
-    .getByRole("article")
-    .filter({ hasText: seasonNames.meso })
-    .getByRole("button", { name: "Planung öffnen" })
-    .click();
+  await openPlanningData(page, seasonNames.meso);
 
   const macrocycles = page.getByRole("region", { name: "Makrozyklen" });
   await macrocycles.getByLabel("Name").fill("Grundlagenaufbau");
@@ -292,11 +296,7 @@ test("manages a microcycle inside its mesocycle", async ({ page }) => {
   await page.getByLabel("Beschreibung").fill("Gemeinsame Planung");
   await page.getByLabel("Hauptziel").fill("Meisterschaft");
   await page.getByRole("button", { name: "Saison speichern" }).click();
-  await page
-    .getByRole("article")
-    .filter({ hasText: seasonNames.micro })
-    .getByRole("button", { name: "Planung öffnen" })
-    .click();
+  await openPlanningData(page, seasonNames.micro);
 
   const macrocycles = page.getByRole("region", { name: "Makrozyklen" });
   await macrocycles.getByLabel("Name").fill("Grundlagenaufbau");
@@ -337,9 +337,11 @@ test("manages a microcycle inside its mesocycle", async ({ page }) => {
     .getByRole("button", { name: "Mikrozyklus anlegen" })
     .click();
   await expect(microcycles.getByText("KW 32")).toBeVisible();
+  await page.getByRole("tab", { name: "Woche" }).click();
   await expect(
     page.getByRole("heading", { name: "Trainer-Wochenansicht" }),
   ).toBeVisible();
+  await page.getByRole("tab", { name: "Planungsdaten" }).click();
 
   await microcycles.getByRole("button", { name: "Bearbeiten" }).click();
   await microcycles.getByLabel("Name/KW").fill("KW 33");
@@ -397,17 +399,20 @@ test("persists after reload and exposes matrix, week, mobile and JSON export", a
     .filter({ hasText: seasonNames.persistence });
   await expect(card).toBeVisible();
   await card.getByRole("button", { name: "Planung öffnen" }).click();
+  await page.getByRole("tab", { name: "Woche" }).click();
   await expect(page.locator(".week-view")).toBeVisible();
   await expect(
     page.getByRole("heading", { name: "Noch keine Trainingswoche" }),
   ).toBeVisible();
+  await page.getByRole("tab", { name: "Matrix" }).click();
   await expect(
     page.getByRole("heading", { name: "Saisonmatrix" }),
   ).toBeVisible();
 
   await page.setViewportSize({ width: 390, height: 844 });
+  await page.getByRole("tab", { name: "Woche" }).click();
   await expect(page.locator(".week-view")).toBeVisible();
-  await expect(page.locator(".app-shell")).toHaveCSS("width", "358px");
+  await expect(page.locator(".planning-app")).toHaveCSS("width", "390px");
 
   const download = page.waitForEvent("download");
   await page.getByRole("button", { name: "JSON exportieren" }).click();

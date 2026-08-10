@@ -37,7 +37,7 @@ sticky. Mobile Optimierung und M5 Editing bleiben im Non-Scope.
 
 ## Entscheidungen
 
-Keine.
+Die Einbettung als primäre Desktopansicht wird in ExecPlan 012 umgesetzt.
 
 ## Abschluss
 

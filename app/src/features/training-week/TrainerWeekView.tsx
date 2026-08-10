@@ -1,4 +1,10 @@
-import { useState, type FormEvent } from "react";
+import {
+  useEffect,
+  useEffectEvent,
+  useRef,
+  useState,
+  type FormEvent,
+} from "react";
 import type {
   FocusDefinition,
   Mesocycle,
@@ -59,6 +65,8 @@ export function TrainerWeekView({
   const [editing, setEditing] = useState<TrainingSession>();
   const [form, setForm] = useState(emptySession);
   const [weekForm, setWeekForm] = useState<Microcycle | null>(null);
+  const [mobileMode, setMobileMode] = useState<"day" | "week">("week");
+  const [selectedDayIndex, setSelectedDayIndex] = useState<number | null>(null);
   const selected =
     microcycles.find((item) => item.id === selectedId) ?? microcycles[0];
   if (!selected)
@@ -70,7 +78,18 @@ export function TrainerWeekView({
       </section>
     );
   const dates = sevenDays(selected.startDate);
+  const todayIndex = dates.indexOf(new Date().toISOString().slice(0, 10));
+  const activeDayIndex = selectedDayIndex ?? (todayIndex >= 0 ? todayIndex : 0);
   const meso = mesocycles.find((item) => item.id === selected.mesocycleId);
+  const weekIndex = microcycles.findIndex((item) => item.id === selected.id);
+
+  function moveWeek(offset: number) {
+    const next = microcycles[weekIndex + offset];
+    if (next) {
+      setSelectedId(next.id);
+      setSelectedDayIndex(null);
+    }
+  }
 
   async function saveDay(event: FormEvent) {
     event.preventDefault();
@@ -159,7 +178,10 @@ export function TrainerWeekView({
           <span>Woche wählen</span>
           <select
             value={selected.id}
-            onChange={(event) => setSelectedId(event.target.value)}
+            onChange={(event) => {
+              setSelectedId(event.target.value);
+              setSelectedDayIndex(null);
+            }}
           >
             {microcycles.map((item) => (
               <option key={item.id} value={item.id}>
@@ -168,6 +190,74 @@ export function TrainerWeekView({
             ))}
           </select>
         </label>
+      </div>
+      <div className="mobile-week-controls">
+        <div
+          className="segmented-control"
+          role="tablist"
+          aria-label="Mobile Planungsansicht"
+        >
+          <button
+            role="tab"
+            aria-selected={mobileMode === "day"}
+            className={mobileMode === "day" ? "active" : ""}
+            onClick={() => setMobileMode("day")}
+          >
+            Tag
+          </button>
+          <button
+            role="tab"
+            aria-selected={mobileMode === "week"}
+            className={mobileMode === "week" ? "active" : ""}
+            onClick={() => setMobileMode("week")}
+          >
+            Woche
+          </button>
+        </div>
+        <div
+          className="period-navigation"
+          aria-label={
+            mobileMode === "day" ? "Tagesnavigation" : "Wochennavigation"
+          }
+        >
+          <button
+            type="button"
+            aria-label={
+              mobileMode === "day" ? "Vorheriger Tag" : "Vorherige Woche"
+            }
+            disabled={
+              mobileMode === "day" ? activeDayIndex === 0 : weekIndex <= 0
+            }
+            onClick={() =>
+              mobileMode === "day"
+                ? setSelectedDayIndex(Math.max(0, activeDayIndex - 1))
+                : moveWeek(-1)
+            }
+          >
+            ←
+          </button>
+          <strong>
+            {mobileMode === "day"
+              ? `${weekdays[activeDayIndex]}, ${formatDate(dates[activeDayIndex])}`
+              : `KW ${isoWeek(selected.startDate)}`}
+          </strong>
+          <button
+            type="button"
+            aria-label={mobileMode === "day" ? "Nächster Tag" : "Nächste Woche"}
+            disabled={
+              mobileMode === "day"
+                ? activeDayIndex === 6
+                : weekIndex >= microcycles.length - 1
+            }
+            onClick={() =>
+              mobileMode === "day"
+                ? setSelectedDayIndex(Math.min(6, activeDayIndex + 1))
+                : moveWeek(1)
+            }
+          >
+            →
+          </button>
+        </div>
       </div>
       <button
         className="week-summary"
@@ -202,14 +292,17 @@ export function TrainerWeekView({
       <div className="week-load">
         <span style={{ width: `${selected.targetRpe * 10}%` }} />
       </div>
-      <div className="day-grid">
+      <div
+        className={`day-grid mobile-${mobileMode}`}
+        style={{ "--selected-day": activeDayIndex } as React.CSSProperties}
+      >
         {dates.map((date, index) => {
           const day = days.find((item) => item.date === date);
           const entries = sessions.filter(
             (item) => item.trainingDayId === day?.id,
           );
           return (
-            <article className="day-lane" key={date}>
+            <article className={`day-lane day-${index}`} key={date}>
               <header className="day-heading">
                 <div>
                   <strong>{weekdays[index]}</strong>
@@ -476,9 +569,49 @@ function Modal({
   close: () => void;
   children: React.ReactNode;
 }) {
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const onClose = useEffectEvent(close);
+  useEffect(() => {
+    const previous = document.activeElement as HTMLElement | null;
+    const dialog = dialogRef.current;
+    dialog
+      ?.querySelector<HTMLElement>("input, button, select, textarea")
+      ?.focus();
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onClose();
+      if (event.key !== "Tab" || !dialog) return;
+      const controls = [
+        ...dialog.querySelectorAll<HTMLElement>(
+          "button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex='0']",
+        ),
+      ];
+      const first = controls[0];
+      const last = controls.at(-1);
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last?.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first?.focus();
+      }
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("keydown", onKeyDown);
+      previous?.focus();
+    };
+  }, []);
   return (
-    <div className="modal-backdrop" onMouseDown={close}>
-      <div onMouseDown={(event) => event.stopPropagation()}>{children}</div>
+    <div className="modal-backdrop" role="presentation" onMouseDown={close}>
+      <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Editor"
+        onMouseDown={(event) => event.stopPropagation()}
+      >
+        {children}
+      </div>
     </div>
   );
 }
@@ -486,7 +619,13 @@ function Head({ title, close }: { title: string; close: () => void }) {
   return (
     <div className="editor-heading">
       <h3>{title}</h3>
-      <button className="icon-button" type="button" onClick={close}>
+      <button
+        className="icon-button"
+        type="button"
+        aria-label="Dialog schließen"
+        title="Dialog schließen"
+        onClick={close}
+      >
         ×
       </button>
     </div>

@@ -103,12 +103,16 @@ const blankMicrocycleSegment: MicrocycleSegmentInput = {
   sortOrder: 0,
 };
 
+export type PlanningView = "matrix" | "week" | "data";
+
 export function SeasonPlanning({
   season,
   storage,
+  view,
 }: {
   season: Season;
   storage: StorageAdapter;
+  view: PlanningView;
 }) {
   const service = useMemo(() => new SeasonPlanningService(storage), [storage]);
   const [tracks, setTracks] = useState<EventTrack[]>([]);
@@ -225,120 +229,129 @@ export function SeasonPlanning({
           setTrainingDays(nextTrainingDays);
           setTrainingSessions(nextTrainingSessions);
         },
-      );
+      )
+      .catch(() => {
+        if (active) {
+          setNotice(
+            "Planungsdaten konnten nicht geladen werden. Bitte neu laden.",
+          );
+        }
+      });
     return () => {
       active = false;
     };
   }, [season.id, service]);
 
   return (
-    <section className="planning" aria-labelledby="planning-title">
-      <div className="planning-header">
-        <div>
-          <p className="eyebrow">Saisonplanung</p>
-          <h2 id="planning-title">{season.name}</h2>
-          <p>
-            {formatDate(season.startDate)} – {formatDate(season.endDate)}
-          </p>
-        </div>
-      </div>
+    <section
+      className={`planning planning-view-${view}`}
+      aria-label="Saisonplanung"
+    >
       {notice && (
         <p className="notice" role="status">
           {notice}
         </p>
       )}
-      <TrainerWeekView
-        season={season}
-        microcycles={microcycles}
-        mesocycles={mesocycles}
-        focusDefinitions={focusDefinitions}
-        days={trainingDays}
-        sessions={trainingSessions}
-        service={service}
-        onChange={reload}
-      />
-      <SeasonMatrix
-        season={season}
-        tracks={tracks}
-        events={events}
-        constraints={constraints}
-        macrocycles={macrocycles}
-        mesocycles={mesocycles}
-        microcycles={microcycles}
-        dimensions={dimensions}
-        focusDefinitions={focusDefinitions}
-        focusSegments={focusSegments}
-      />
-      <TrackSection
-        tracks={tracks}
-        service={service}
-        seasonId={season.id}
-        onChange={reload}
-        onNotice={setNotice}
-      />
-      <EventSection
-        events={events}
-        tracks={tracks}
-        service={service}
-        seasonId={season.id}
-        onChange={reload}
-        onNotice={setNotice}
-      />
-      <ConstraintSection
-        constraints={constraints}
-        service={service}
-        seasonId={season.id}
-        onChange={reload}
-        onNotice={setNotice}
-      />
-      <MacrocycleSection
-        macrocycles={macrocycles}
-        events={events}
-        service={service}
-        seasonId={season.id}
-        onChange={reload}
-        onNotice={setNotice}
-      />
-      <MesocycleSection
-        mesocycles={mesocycles}
-        macrocycles={macrocycles}
-        service={service}
-        seasonId={season.id}
-        onChange={reload}
-        onNotice={setNotice}
-      />
-      <MicrocycleSection
-        microcycles={microcycles}
-        mesocycles={mesocycles}
-        service={service}
-        seasonId={season.id}
-        onChange={reload}
-        onNotice={setNotice}
-      />
-      <MicrocycleSegmentSection
-        segments={microcycleSegments}
-        microcycles={microcycles}
-        service={service}
-        seasonId={season.id}
-        onChange={reload}
-        onNotice={setNotice}
-      />
-      <PeriodizationManagement
-        seasonId={season.id}
-        dimensions={dimensions}
-        focusDefinitions={focusDefinitions}
-        focusSegments={focusSegments}
-        service={service}
-        onChange={reload}
-        onNotice={setNotice}
-      />
-      <TrainingDayManagement
-        season={season}
-        days={trainingDays}
-        service={service}
-        onChange={reload}
-        onNotice={setNotice}
-      />
+      {view === "week" && (
+        <TrainerWeekView
+          season={season}
+          microcycles={microcycles}
+          mesocycles={mesocycles}
+          focusDefinitions={focusDefinitions}
+          days={trainingDays}
+          sessions={trainingSessions}
+          service={service}
+          onChange={reload}
+        />
+      )}
+      {view === "matrix" && (
+        <SeasonMatrix
+          season={season}
+          tracks={tracks}
+          events={events}
+          constraints={constraints}
+          macrocycles={macrocycles}
+          mesocycles={mesocycles}
+          microcycles={microcycles}
+          dimensions={dimensions}
+          focusDefinitions={focusDefinitions}
+          focusSegments={focusSegments}
+        />
+      )}
+      {view === "data" && (
+        <div className="planning-data">
+          <TrackSection
+            tracks={tracks}
+            service={service}
+            seasonId={season.id}
+            onChange={reload}
+            onNotice={setNotice}
+          />
+          <EventSection
+            events={events}
+            tracks={tracks}
+            service={service}
+            seasonId={season.id}
+            onChange={reload}
+            onNotice={setNotice}
+          />
+          <ConstraintSection
+            constraints={constraints}
+            service={service}
+            seasonId={season.id}
+            onChange={reload}
+            onNotice={setNotice}
+          />
+          <MacrocycleSection
+            macrocycles={macrocycles}
+            events={events}
+            service={service}
+            seasonId={season.id}
+            onChange={reload}
+            onNotice={setNotice}
+          />
+          <MesocycleSection
+            mesocycles={mesocycles}
+            macrocycles={macrocycles}
+            service={service}
+            seasonId={season.id}
+            onChange={reload}
+            onNotice={setNotice}
+          />
+          <MicrocycleSection
+            microcycles={microcycles}
+            mesocycles={mesocycles}
+            service={service}
+            seasonId={season.id}
+            onChange={reload}
+            onNotice={setNotice}
+          />
+          <MicrocycleSegmentSection
+            segments={microcycleSegments}
+            microcycles={microcycles}
+            service={service}
+            seasonId={season.id}
+            onChange={reload}
+            onNotice={setNotice}
+          />
+          <PeriodizationManagement
+            seasonId={season.id}
+            dimensions={dimensions}
+            focusDefinitions={focusDefinitions}
+            focusSegments={focusSegments}
+            service={service}
+            onChange={reload}
+            onNotice={setNotice}
+          />
+          <TrainingDayManagement
+            season={season}
+            days={trainingDays}
+            service={service}
+            onChange={reload}
+            onNotice={setNotice}
+          />
+        </div>
+      )}
     </section>
   );
 }

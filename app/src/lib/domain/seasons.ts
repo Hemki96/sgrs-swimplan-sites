@@ -57,4 +57,22 @@ export class SeasonService {
       revision: { seasonId: season.id, editorLabel: "public" },
     });
   }
+
+  async restore(id: string): Promise<Season> {
+    const seasons = await this.storage.list<Season>("seasons", {
+      includeDeleted: true,
+    });
+    const deleted = seasons.find(
+      (season) => season.id === id && season.deletedAt,
+    );
+    if (!deleted) throw new Error("Deleted season not found");
+    return this.storage.put(
+      "seasons",
+      { ...deleted, deletedAt: null },
+      {
+        expectedVersion: deleted.version,
+        revision: { seasonId: deleted.id, editorLabel: "public" },
+      },
+    );
+  }
 }

@@ -1,5 +1,17 @@
 # Changelog
 
+## 2026-08-10 – Primäre Planungsoberfläche
+
+- URL-basierte Saisonplanung unter `/saisons/:seasonId` mit Reload- und
+  Browsernavigation.
+- Desktop Master/Detail mit Saisonfilter und Saisonmatrix im ersten Viewport.
+- Mobile Saisonwahl sowie Tag-/Wochensteuerung ohne horizontalen
+  Seitenüberlauf.
+- Kompakte Planungs-Tabs, globale Fokuszustände, Dialog-Fokusfalle,
+  Lade-/Fehlerfeedback und Undo nach Soft Delete.
+- ADR 0015 und ExecPlan 012 dokumentiert; Quality Gate inklusive 59 Unit- und
+  9 E2E-Tests bestanden.
+
 ## 2026-08-10 – Offizielles SGRS-Branding
 
 - Offizielles Logo der SG Rhein-Sieg aus

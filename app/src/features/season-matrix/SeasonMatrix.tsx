@@ -185,6 +185,8 @@ function MatrixRowView({
             <div
               className={`matrix-block matrix-block-${block.tone}`}
               key={block.id}
+              tabIndex={0}
+              aria-label={`${block.label}: ${formatDate(block.startDate)} bis ${formatDate(block.endDate)}${block.detail ? `, ${block.detail}` : ""}`}
               style={{
                 gridColumn: `${start + 1} / span ${Math.max(1, end - start + 1)}`,
               }}

@@ -1190,3 +1190,522 @@ a:focus-visible {
     transition: none;
   }
 }
+
+/* Primary planning shell: a dense, navigable pooldeck board. */
+:root {
+  --color-primary: var(--color-action);
+  --color-primary-strong: var(--color-deep);
+  --color-canvas: var(--color-background);
+  --color-line: var(--color-border);
+  --color-danger: #a92f35;
+  --focus-ring: var(--color-focus);
+  --radius-sm: 0.55rem;
+  --radius-md: 0.85rem;
+  --radius-lg: 1.15rem;
+  --shadow-panel: 0 18px 50px rgba(15, 41, 64, 0.09);
+}
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible,
+summary:focus-visible,
+[tabindex="0"]:focus-visible {
+  outline: 3px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.48;
+}
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+.skip-link {
+  position: fixed;
+  z-index: 100;
+  top: 0.75rem;
+  left: 0.75rem;
+  padding: 0.7rem 1rem;
+  border-radius: var(--radius-sm);
+  color: white;
+  background: var(--color-primary-strong);
+  transform: translateY(-180%);
+}
+.skip-link:focus {
+  transform: translateY(0);
+}
+.planning-app {
+  min-height: 100dvh;
+  color: var(--color-text);
+  background: var(--color-canvas);
+}
+.app-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 4.8rem;
+  padding: 0.8rem clamp(1rem, 3vw, 2.5rem);
+  border-bottom: 1px solid var(--color-line);
+  background: rgba(255, 255, 255, 0.94);
+}
+.app-topbar .eyebrow {
+  margin-bottom: 0.15rem;
+}
+.app-topbar strong {
+  font-size: 1.15rem;
+  letter-spacing: -0.02em;
+}
+.brand-lockup {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+}
+.brand-lockup img {
+  width: 3rem;
+  height: 3rem;
+  object-fit: contain;
+}
+.topbar-actions {
+  display: flex;
+  gap: 0.65rem;
+}
+.app-notice {
+  position: fixed;
+  z-index: 60;
+  right: 1.25rem;
+  top: 5.4rem;
+  box-shadow: var(--shadow-panel);
+}
+.planning-shell {
+  display: grid;
+  width: 100%;
+  min-width: 0;
+  min-height: calc(100dvh - 4.8rem);
+}
+.season-rail {
+  min-width: 0;
+  padding: 1rem;
+  border-bottom: 1px solid var(--color-line);
+  background: #f8fbfd;
+}
+.rail-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.75rem;
+  font-weight: 800;
+}
+.rail-heading b {
+  display: grid;
+  min-width: 1.8rem;
+  height: 1.8rem;
+  place-items: center;
+  border-radius: 99px;
+  color: var(--color-muted);
+  background: var(--color-soft-strong);
+  font-size: 0.75rem;
+}
+.rail-search input,
+.mobile-season-picker select {
+  width: 100%;
+  min-height: 2.75rem;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-sm);
+  padding: 0.65rem 0.75rem;
+  background: white;
+}
+.rail-search {
+  display: none;
+}
+.mobile-season-picker {
+  display: grid;
+  gap: 0.35rem;
+  color: var(--color-muted);
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+.filter-chips {
+  display: flex;
+  gap: 0.4rem;
+  margin-top: 0.75rem;
+  overflow-x: auto;
+}
+.filter-chips button {
+  min-height: 2.5rem;
+  padding: 0.45rem 0.7rem;
+  border: 1px solid var(--color-line);
+  border-radius: 99px;
+  color: var(--color-muted);
+  background: white;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.filter-chips button.active {
+  color: white;
+  border-color: var(--color-primary);
+  background: var(--color-primary);
+}
+.season-rail-list {
+  display: none;
+}
+.workspace {
+  min-width: 0;
+  padding: 1rem;
+}
+.workspace-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+.workspace-header h1 {
+  margin: 0.4rem 0 0.25rem;
+  font-size: clamp(1.65rem, 4vw, 2.5rem);
+}
+.workspace-header p {
+  margin: 0;
+  color: var(--color-muted);
+}
+.workspace-header p span {
+  padding-inline: 0.25rem;
+}
+.workspace-tabs {
+  display: flex;
+  gap: 0.3rem;
+  padding: 0.3rem;
+  border: 1px solid var(--color-line);
+  border-radius: 0.75rem;
+  background: var(--color-soft-strong);
+}
+.workspace-tabs button {
+  flex: 1;
+  min-height: 2.75rem;
+  padding: 0.55rem 0.8rem;
+  border: 0;
+  border-radius: 0.55rem;
+  color: var(--color-muted);
+  background: transparent;
+  cursor: pointer;
+  font-weight: 750;
+}
+.workspace-tabs button.active {
+  color: var(--color-primary-strong);
+  background: white;
+  box-shadow: 0 3px 10px rgba(15, 41, 64, 0.1);
+}
+.workspace-tabs button:first-child {
+  display: none;
+}
+.planning {
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.planning-data {
+  padding-bottom: 4rem;
+}
+.route-error,
+.welcome-empty {
+  max-width: 46rem;
+  margin: clamp(3rem, 12vh, 8rem) auto;
+  padding: 2rem;
+  text-align: center;
+}
+.welcome-empty h1,
+.route-error h1 {
+  margin: 0.5rem 0 0.75rem;
+}
+.welcome-empty p:not(.eyebrow),
+.route-error p:not(.eyebrow) {
+  color: var(--color-muted);
+}
+.action-menu {
+  position: relative;
+}
+.action-menu summary {
+  cursor: pointer;
+  color: var(--color-muted);
+  font-size: 0.72rem;
+  font-weight: 750;
+  list-style: none;
+}
+.action-menu summary::-webkit-details-marker {
+  display: none;
+}
+.action-menu > div {
+  position: absolute;
+  z-index: 20;
+  top: 1.6rem;
+  right: 0;
+  display: grid;
+  min-width: 9rem;
+  padding: 0.35rem;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-sm);
+  background: white;
+  box-shadow: var(--shadow-panel);
+}
+.action-menu button {
+  padding: 0.6rem;
+  border: 0;
+  border-radius: 0.35rem;
+  background: white;
+  text-align: left;
+  cursor: pointer;
+}
+.action-menu button:hover {
+  background: var(--color-soft);
+}
+.danger-text {
+  color: var(--color-danger);
+}
+.mobile-week-controls {
+  display: grid;
+  gap: 0.65rem;
+  padding: 0.8rem;
+  border-top: 1px solid var(--line);
+  background: var(--color-soft);
+}
+.segmented-control {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.25rem;
+  padding: 0.2rem;
+  border-radius: 0.65rem;
+  background: var(--color-soft-strong);
+}
+.segmented-control button {
+  min-height: 2.75rem;
+  border: 0;
+  border-radius: 0.5rem;
+  color: var(--color-muted);
+  background: transparent;
+  cursor: pointer;
+  font-weight: 800;
+}
+.segmented-control button.active {
+  color: var(--color-deep);
+  background: white;
+  box-shadow: 0 2px 8px rgba(15, 41, 64, 0.1);
+}
+.period-navigation {
+  display: grid;
+  grid-template-columns: 2.75rem 1fr 2.75rem;
+  align-items: center;
+  gap: 0.5rem;
+  text-align: center;
+}
+.period-navigation button {
+  min-width: 2.75rem;
+  min-height: 2.75rem;
+  border: 1px solid var(--color-border-strong);
+  border-radius: 50%;
+  color: var(--color-action);
+  background: white;
+  cursor: pointer;
+}
+.period-navigation strong {
+  font-size: 0.88rem;
+}
+.day-grid.mobile-day .day-lane {
+  display: none;
+}
+.day-grid.mobile-day .day-0 {
+  display: flex;
+}
+.day-grid.mobile-day[style*="--selected-day: 1"] .day-0,
+.day-grid.mobile-day[style*="--selected-day: 2"] .day-0,
+.day-grid.mobile-day[style*="--selected-day: 3"] .day-0,
+.day-grid.mobile-day[style*="--selected-day: 4"] .day-0,
+.day-grid.mobile-day[style*="--selected-day: 5"] .day-0,
+.day-grid.mobile-day[style*="--selected-day: 6"] .day-0 {
+  display: none;
+}
+.day-grid.mobile-day[style*="--selected-day: 1"] .day-1,
+.day-grid.mobile-day[style*="--selected-day: 2"] .day-2,
+.day-grid.mobile-day[style*="--selected-day: 3"] .day-3,
+.day-grid.mobile-day[style*="--selected-day: 4"] .day-4,
+.day-grid.mobile-day[style*="--selected-day: 5"] .day-5,
+.day-grid.mobile-day[style*="--selected-day: 6"] .day-6 {
+  display: flex;
+}
+
+@media (max-width: 63.999rem) {
+  .planning-shell {
+    min-height: auto;
+  }
+  .season-rail {
+    overflow: hidden;
+  }
+  .filter-chips {
+    display: none;
+  }
+  .app-topbar {
+    gap: 0.65rem;
+    padding-inline: 1rem;
+  }
+  .app-topbar strong {
+    font-size: 1rem;
+  }
+  .topbar-actions .button {
+    min-height: 2.75rem;
+    padding-inline: 0.7rem;
+  }
+  .workspace-header .button {
+    display: none;
+  }
+  .week-view {
+    margin-top: 1rem;
+  }
+  .week-toolbar {
+    padding: 1rem;
+  }
+  .week-summary {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .day-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    overflow: visible;
+    scroll-snap-type: none;
+  }
+  .day-lane {
+    min-height: auto;
+    margin: 0.65rem;
+    padding: 0.85rem;
+    border: 1px solid var(--line);
+    border-radius: 0.85rem;
+    background: white;
+  }
+  .add-session {
+    min-height: 2.75rem;
+    border: 1px dashed var(--color-border-strong);
+  }
+  .season-matrix-section {
+    display: none;
+  }
+}
+@media (max-width: 25rem) {
+  .brand-lockup > div {
+    display: none;
+  }
+  .brand-lockup img {
+    width: 2.5rem;
+    height: 2.5rem;
+  }
+  .app-topbar {
+    padding-inline: 0.75rem;
+  }
+  .topbar-actions .button {
+    padding-inline: 0.55rem;
+    font-size: 0.8rem;
+  }
+}
+@media (min-width: 64rem) {
+  .planning-shell {
+    grid-template-columns: 18rem minmax(0, 1fr);
+    min-height: calc(100dvh - 4.8rem);
+  }
+  .season-rail {
+    position: sticky;
+    top: 0;
+    height: calc(100dvh - 4.8rem);
+    padding: 1rem 0.75rem;
+    border-right: 1px solid var(--color-line);
+    border-bottom: 0;
+    overflow-y: auto;
+  }
+  .rail-search {
+    display: block;
+  }
+  .mobile-season-picker {
+    display: none;
+  }
+  .season-rail-list {
+    display: grid;
+    gap: 0.45rem;
+    margin-top: 0.8rem;
+  }
+  .rail-season {
+    position: relative;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    border: 1px solid transparent;
+    border-radius: 0.75rem;
+  }
+  .rail-season:hover {
+    background: var(--color-soft);
+  }
+  .rail-season.selected {
+    border-color: var(--color-border-strong);
+    background: var(--color-soft-strong);
+    box-shadow: inset 3px 0 0 var(--color-primary);
+  }
+  .rail-season-main {
+    display: grid;
+    min-width: 0;
+    gap: 0.18rem;
+    padding: 0.7rem;
+    border: 0;
+    color: inherit;
+    background: transparent;
+    text-align: left;
+    cursor: pointer;
+  }
+  .rail-season-main strong,
+  .rail-season-main small {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .rail-season-main small {
+    color: var(--color-muted);
+    font-size: 0.68rem;
+  }
+  .rail-season .action-menu {
+    padding-right: 0.55rem;
+  }
+  .workspace {
+    padding: 1.4rem clamp(1.25rem, 3vw, 2.5rem) 4rem;
+    overflow: hidden;
+  }
+  .workspace-tabs {
+    width: fit-content;
+  }
+  .workspace-tabs button {
+    min-width: 9rem;
+  }
+  .workspace-tabs button:first-child {
+    display: block;
+  }
+  .season-matrix-section {
+    margin-top: 1rem;
+  }
+  .mobile-week-controls {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}
