@@ -12,6 +12,33 @@ import type {
 import { GLOBAL_REVISION_SCOPE_ID } from "./StorageAdapter";
 import { EXPORT_COLLECTION_KEYS } from "./StorageAdapter";
 
+export interface StorageApiErrorBody {
+  error: {
+    code: string;
+    message: string;
+    collection?: StorageCollection;
+    entityId?: string;
+    path?: string;
+  };
+}
+
+export class StorageValidationError extends Error {
+  constructor(readonly detail: StorageApiErrorBody["error"]) {
+    super(detail.message);
+    this.name = "StorageValidationError";
+  }
+}
+
+export class StorageTransportError extends Error {
+  constructor(
+    message: string,
+    readonly status: number,
+  ) {
+    super(message);
+    this.name = "StorageTransportError";
+  }
+}
+
 export class SitesStorageAdapter implements StorageAdapter {
   constructor(private readonly apiBase = "/api/storage") {}
 
@@ -31,8 +58,20 @@ export class SitesStorageAdapter implements StorageAdapter {
       );
     }
     if (!response.ok) {
-      const message = await response.text();
-      throw new Error(message || `Storage request failed (${response.status})`);
+      const text = await response.text();
+      let body: StorageApiErrorBody | null = null;
+      try {
+        body = JSON.parse(text) as StorageApiErrorBody;
+      } catch {
+        // Non-JSON failures are transport/runtime errors.
+      }
+      if (body?.error?.code && body.error.message) {
+        throw new StorageValidationError(body.error);
+      }
+      throw new StorageTransportError(
+        text || `Storage request failed (${response.status})`,
+        response.status,
+      );
     }
     if (response.status === 204) return undefined as T;
     return (await response.json()) as T;

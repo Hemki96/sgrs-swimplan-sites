@@ -34,6 +34,14 @@ dagegen eine rein statische Vite-Anwendung und verwendete produktiv den
 6. Import/Hydrate bleibt in Sites gesperrt, bis der verpflichtende validierte
    Vorschau- und Bestätigungsflow implementiert ist. Der Gesamtexport ist davon
    unabhängig verfügbar.
+7. Die Worker-Route ist eine nicht vertrauenswürdige öffentliche Grenze. Sie
+   validiert jede persistierte Entität mit denselben runtime-neutralen
+   Zod-Schemata wie die Importvorschau und leitet Saison-Scope und Relationen
+   serverseitig ab. Clientseitige Typen oder Revisionsangaben sind kein
+   Sicherheits- oder Integritätsnachweis.
+8. Fehler verwenden einen stabilen strukturierten Vertrag mit Code, Meldung und
+   optional Collection, Entity-ID und Feldpfad. Versionskonflikte bleiben HTTP
+   409; Validierungsfehler sind HTTP 400.
 
 ## Alternativen
 
@@ -53,3 +61,6 @@ dagegen eine rein statische Vite-Anwendung und verwendete produktiv den
 - Der Build erzeugt `dist/server/index.js`, Hosting-Metadaten und die Migration.
 - Vor einem späteren öffentlichen Publish sind die private Runtime, parallele
   Schreibzugriffe, Importvorschau und Betriebsgrenzen erneut zu prüfen.
+- Bestehende gültige Daten bleiben JSON-kompatibel; eine Schemaänderung an
+  persistierten Entitäten muss künftig gleichzeitig Domain-, Worker- und
+  Importvalidierung aktualisieren.

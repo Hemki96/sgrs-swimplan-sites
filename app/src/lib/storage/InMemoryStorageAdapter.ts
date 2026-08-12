@@ -134,6 +134,15 @@ export class InMemoryStorageAdapter implements StorageAdapter {
   }
 
   async purgeSeason(seasonId: Id): Promise<void> {
+    const season = (
+      await this.list<StoredEntity>("seasons", { includeDeleted: true })
+    ).find((entity) => entity.id === seasonId);
+    if (!season) {
+      throw new Error("Season not found");
+    }
+    if (!season.deletedAt) {
+      throw new Error("Only soft-deleted seasons can be purged");
+    }
     const snapshot = await this.exportAll();
     const scope = new Set<StorageCollection>();
     for (const [collection, entities] of Object.entries(snapshot)) {

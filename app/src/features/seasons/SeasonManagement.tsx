@@ -1,13 +1,12 @@
 import {
+  lazy,
+  Suspense,
   useEffect,
-  useEffectEvent,
   useMemo,
   useRef,
   useState,
   type FormEvent,
 } from "react";
-import { ZodError } from "zod";
-
 import { downloadJsonExport } from "../../lib/export/jsonExport";
 import { seedDemoSeason } from "../../lib/domain/seedDemoSeason";
 import { SeasonService } from "../../lib/domain/seasons";
@@ -17,10 +16,30 @@ import {
   seasonInputSchema,
   type SeasonInput,
 } from "../../lib/validation/domain";
-import { SeasonPlanning, type PlanningView } from "./SeasonPlanning";
+import type { PlanningView } from "./SeasonPlanning";
 import { preferredSeason, seasonIdFromPath } from "./seasonNavigation";
-import { SettingsPage } from "../settings/SettingsPage";
 import { ConfigurationService } from "../../lib/domain/configuration";
+import { fieldErrors } from "../forms/errors";
+import { SeasonEditor } from "./SeasonEditor";
+
+const SeasonPlanning = lazy(() =>
+  import("./SeasonPlanning").then((module) => ({
+    default: module.SeasonPlanning,
+  })),
+);
+const SettingsPage = lazy(() =>
+  import("../settings/SettingsPage").then((module) => ({
+    default: module.SettingsPage,
+  })),
+);
+
+function ViewLoading({ label }: { label: string }) {
+  return (
+    <div className="view-loading" role="status" aria-live="polite">
+      {label} wird geladen …
+    </div>
+  );
+}
 
 const emptyInput: SeasonInput = {
   name: "",
@@ -171,7 +190,11 @@ export function SeasonManagement({
     window.history.pushState({}, "", next ? `/saisons/${next.id}` : "/");
   }
   if (settingsOpen)
-    return <SettingsPage storage={storage} close={closeSettings} />;
+    return (
+      <Suspense fallback={<ViewLoading label="Einstellungen" />}>
+        <SettingsPage storage={storage} close={closeSettings} />
+      </Suspense>
+    );
   function openCreate() {
     setEditing(null);
     setForm(emptyInput);
@@ -471,12 +494,14 @@ export function SeasonManagement({
                     </button>
                   ))}
                 </nav>
-                <SeasonPlanning
-                  key={selected.id}
-                  season={selected}
-                  storage={storage}
-                  view={view}
-                />
+                <Suspense fallback={<ViewLoading label="Saisonplanung" />}>
+                  <SeasonPlanning
+                    key={selected.id}
+                    season={selected}
+                    storage={storage}
+                    view={view}
+                  />
+                </Suspense>
               </>
             ) : null}
           </section>
@@ -486,194 +511,6 @@ export function SeasonManagement({
   );
 }
 
-function SeasonEditor({
-  form,
-  setForm,
-  errors,
-  editing,
-  statusOptions,
-  saving,
-  firstInvalid,
-  submit,
-  close,
-}: {
-  form: SeasonInput;
-  setForm: (value: SeasonInput) => void;
-  errors: Record<string, string>;
-  editing: Season | null;
-  statusOptions: Record<SeasonStatus, string>;
-  saving: boolean;
-  firstInvalid: React.RefObject<HTMLInputElement | null>;
-  submit: (event: FormEvent) => void;
-  close: () => void;
-}) {
-  const dialogRef = useRef<HTMLElement>(null);
-  const onClose = useEffectEvent(close);
-  useEffect(() => {
-    const previous = document.activeElement as HTMLElement | null;
-    const dialog = dialogRef.current;
-    dialog
-      ?.querySelector<HTMLElement>("input, button, select, textarea")
-      ?.focus();
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onClose();
-      if (event.key === "Tab" && dialog) trapTab(event, dialog);
-    };
-    document.addEventListener("keydown", onKeyDown);
-    return () => {
-      document.removeEventListener("keydown", onKeyDown);
-      previous?.focus();
-    };
-  }, []);
-  return (
-    <div className="modal-backdrop" role="presentation">
-      <section
-        ref={dialogRef}
-        className="editor-sheet compact"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="season-editor-title"
-      >
-        <div className="editor-heading">
-          <h2 id="season-editor-title">
-            {editing ? "Saison bearbeiten" : "Saison anlegen"}
-          </h2>
-          <button
-            className="icon-button"
-            aria-label="Dialog schließen"
-            onClick={close}
-          >
-            ×
-          </button>
-        </div>
-        <form onSubmit={submit} noValidate>
-          <div className="form-grid">
-            <Field label="Name" error={errors.name} required wide>
-              <input
-                ref={errors.name ? firstInvalid : undefined}
-                value={form.name}
-                onChange={(e) => setForm({ ...form, name: e.target.value })}
-              />
-            </Field>
-            <Field label="Startdatum" error={errors.startDate} required>
-              <input
-                type="date"
-                value={form.startDate}
-                onChange={(e) =>
-                  setForm({ ...form, startDate: e.target.value })
-                }
-              />
-            </Field>
-            <Field label="Enddatum" error={errors.endDate} required>
-              <input
-                type="date"
-                value={form.endDate}
-                onChange={(e) => setForm({ ...form, endDate: e.target.value })}
-              />
-            </Field>
-            <Field label="Beschreibung" error={errors.description} wide>
-              <textarea
-                rows={3}
-                value={form.description}
-                onChange={(e) =>
-                  setForm({ ...form, description: e.target.value })
-                }
-              />
-            </Field>
-            <Field label="Hauptziel" error={errors.mainGoal} wide>
-              <textarea
-                rows={2}
-                value={form.mainGoal}
-                onChange={(e) => setForm({ ...form, mainGoal: e.target.value })}
-              />
-            </Field>
-            <Field label="Status" error={errors.status}>
-              <select
-                value={form.status}
-                onChange={(e) =>
-                  setForm({ ...form, status: e.target.value as SeasonStatus })
-                }
-              >
-                {Object.entries(statusOptions).map(([value, label]) => (
-                  <option key={value} value={value}>
-                    {label}
-                  </option>
-                ))}
-              </select>
-            </Field>
-          </div>
-          {errors.form && (
-            <p className="field-error" role="alert">
-              {errors.form}
-            </p>
-          )}
-          <div className="editor-footer">
-            <button type="button" className="button quiet" onClick={close}>
-              Abbrechen
-            </button>
-            <button className="button primary" disabled={saving}>
-              {saving ? "Speichert …" : "Saison speichern"}
-            </button>
-          </div>
-        </form>
-      </section>
-    </div>
-  );
-}
-
-function trapTab(event: KeyboardEvent, container: HTMLElement) {
-  const controls = [
-    ...container.querySelectorAll<HTMLElement>(
-      "button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex='0']",
-    ),
-  ];
-  const first = controls[0];
-  const last = controls.at(-1);
-  if (!first || !last) return;
-  if (event.shiftKey && document.activeElement === first) {
-    event.preventDefault();
-    last.focus();
-  } else if (!event.shiftKey && document.activeElement === last) {
-    event.preventDefault();
-    first.focus();
-  }
-}
-function Field({
-  label,
-  error,
-  required,
-  wide,
-  children,
-}: {
-  label: string;
-  error?: string;
-  required?: boolean;
-  wide?: boolean;
-  children: React.ReactNode;
-}) {
-  return (
-    <label className={`field${wide ? " wide" : ""}`}>
-      <span>
-        {label}
-        {required && <em aria-hidden="true"> *</em>}
-      </span>
-      {children}
-      {error && (
-        <span className="field-error" role="alert">
-          {error}
-        </span>
-      )}
-    </label>
-  );
-}
-function fieldErrors(error: ZodError) {
-  return Object.fromEntries(
-    error.issues.map((issue) => [
-      String(issue.path[0] ?? "form"),
-      issue.message,
-    ]),
-  );
-}
 function formatDate(value: string) {
   const [year, month, day] = value.split("-");
   return `${day}.${month}.${year}`;

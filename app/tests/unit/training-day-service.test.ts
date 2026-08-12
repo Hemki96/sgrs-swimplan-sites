@@ -94,4 +94,30 @@ describe("TrainingDay", () => {
       { operation: "soft_delete" },
     ]);
   });
+
+  it("does not orphan active sessions when deleting a training day", async () => {
+    const day = await service.createTrainingDay(season.id, {
+      date: "2026-08-03",
+      dayContext: "",
+      notes: "",
+    });
+    await service.saveTrainingSession(season.id, {
+      trainingDayId: day.id,
+      title: "Montag",
+      startTime: "",
+      mainFocusId: "",
+      technicalFocusId: "",
+      keySession: false,
+      athleteNote: "",
+      equipment: "",
+    });
+
+    await expect(service.deleteTrainingDay(day)).rejects.toThrow(
+      "Ein Trainingstag mit Sessions kann nicht gelöscht werden.",
+    );
+    await expect(service.listTrainingDays(season.id)).resolves.toHaveLength(1);
+    await expect(service.listTrainingSessions(season.id)).resolves.toHaveLength(
+      1,
+    );
+  });
 });

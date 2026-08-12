@@ -119,6 +119,47 @@ describe("Worker storage on the provisioned D1 runtime (DB binding)", () => {
     }
   });
 
+  it("rejects a client-supplied revision scope that differs from the entity season", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "sgrs-swimplan-d1-scope-"));
+    try {
+      await withD1(dir, async (db) => {
+        await putSeason(db, season, 0);
+        const response = await storageRequest(
+          new Request("http://site.test/api/storage/event_tracks/track-1", {
+            method: "PUT",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({
+              entity: {
+                id: "track-1",
+                seasonId: season.id,
+                name: "WK",
+                sortOrder: 0,
+                visible: true,
+                version: 0,
+              },
+              options: {
+                expectedVersion: 0,
+                revision: { seasonId: "another-season" },
+              },
+            }),
+          }),
+          { DB: db },
+        );
+        expect(response.status).toBe(400);
+        expect(await response.json()).toEqual({
+          error: {
+            code: "INVALID_SCOPE",
+            collection: "event_tracks",
+            entityId: "track-1",
+            message: "Revision season does not match event_tracks season scope",
+          },
+        });
+      });
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
   it("purges a season and all rows sharing its season_id", async () => {
     const dir = await mkdtemp(join(tmpdir(), "sgrs-swimplan-d1-purge-"));
     try {
@@ -154,6 +195,25 @@ describe("Worker storage on the provisioned D1 runtime (DB binding)", () => {
           { DB: db },
         );
         expect(macroResponse.status).toBe(200);
+
+        const activePurge = await storageRequest(
+          new Request(
+            "http://site.test/api/storage/seasons/runtime-season/purge",
+            { method: "DELETE" },
+          ),
+          { DB: db },
+        );
+        expect(activePurge.status).toBe(409);
+
+        const softDelete = await storageRequest(
+          new Request("http://site.test/api/storage/seasons/runtime-season", {
+            method: "DELETE",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ options: { expectedVersion: 1 } }),
+          }),
+          { DB: db },
+        );
+        expect(softDelete.status).toBe(204);
 
         const revisionsBefore = await storageRequest(
           new Request(

@@ -1,5 +1,17 @@
 # Changelog
 
+## 2026-08-12 – Production Release Hardening
+
+- Persistierte Zod-Schemata und gemeinsame Snapshot-/Relationsvalidierung für
+  Browser-Preview und Worker ergänzt.
+- Worker-Requests defensiv geparst, strukturierte API-Fehler und typisierte
+  Adapterfehler eingeführt; Mutation und Revision bleiben atomar.
+- Playwright-Läufe auf temporäre, voneinander isolierte D1-Persistenz umgestellt.
+- Settings, Saisonplanung, Analyse und Historie lazy geladen; initialen
+  App-Chunk von rund 703 kB auf 15 kB reduziert.
+- Saison-Editor und Planungsdaten-Sektionen aus den koordinierenden UI-
+  Containern extrahiert.
+
 ## 2026-08-12 – Formular-Entlastung (ExecPlan 016)
 
 - Pflichtfelder entspannt: Saison (`description`, `mainGoal`), Wettkampf

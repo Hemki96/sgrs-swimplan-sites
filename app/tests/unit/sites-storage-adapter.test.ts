@@ -1,5 +1,9 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { SitesStorageAdapter } from "../../src/lib/storage/SitesStorageAdapter";
+import {
+  SitesStorageAdapter,
+  StorageTransportError,
+  StorageValidationError,
+} from "../../src/lib/storage/SitesStorageAdapter";
 
 describe("SitesStorageAdapter", () => {
   afterEach(() => vi.unstubAllGlobals());
@@ -101,6 +105,49 @@ describe("SitesStorageAdapter", () => {
           snapshot: { seasons: [{ id: "season-1", version: 0 }] },
         }),
       }),
+    );
+  });
+
+  it("maps structured API failures to a typed validation error", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        Response.json(
+          {
+            error: {
+              code: "INVALID_ENTITY",
+              message: "RPE ist ungültig.",
+              collection: "training_sessions",
+              entityId: "session-1",
+              path: "expectedRpe",
+            },
+          },
+          { status: 400 },
+        ),
+      ),
+    );
+    const storage = new SitesStorageAdapter("https://site.test/api/storage");
+
+    await expect(storage.list("seasons")).rejects.toEqual(
+      expect.objectContaining({
+        name: "StorageValidationError",
+        detail: expect.objectContaining({ code: "INVALID_ENTITY" }),
+      }),
+    );
+    expect(StorageValidationError).toBeDefined();
+  });
+
+  it("keeps non-JSON runtime failures separate from validation", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn()
+        .mockResolvedValue(new Response("Gateway timeout", { status: 504 })),
+    );
+    const storage = new SitesStorageAdapter("https://site.test/api/storage");
+
+    await expect(storage.list("seasons")).rejects.toBeInstanceOf(
+      StorageTransportError,
     );
   });
 });

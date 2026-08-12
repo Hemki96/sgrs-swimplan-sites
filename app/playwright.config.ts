@@ -10,7 +10,8 @@ export default defineConfig({
   webServer: {
     command: "npm run dev -- --port 4173",
     url: "http://localhost:4173",
-    reuseExistingServer: !process.env.CI,
+    reuseExistingServer:
+      !process.env.CI && process.env.PLAYWRIGHT_ISOLATED_RUN !== "true",
   },
   projects: [
     {

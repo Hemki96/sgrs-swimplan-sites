@@ -1,6 +1,12 @@
 import { buildJsonExport } from "../src/lib/export/jsonExport";
 import type { StorageCollection } from "../src/lib/storage/StorageAdapter";
 import { importSeasonScope } from "../src/lib/storage/importScope";
+import type { StorageSnapshot } from "../src/lib/storage/StorageAdapter";
+import {
+  validateStorageEntity,
+  validateStorageSnapshot,
+  type SnapshotValidationIssue,
+} from "../src/lib/validation/storage";
 
 export interface D1Result<T = unknown> {
   results?: T[];
@@ -77,25 +83,76 @@ export function json(value: unknown, status = 200) {
   return Response.json(value, { status });
 }
 
+function apiError(
+  status: number,
+  code: string,
+  message: string,
+  detail: Partial<SnapshotValidationIssue> = {},
+) {
+  return json({ error: { code, message, ...detail } }, status);
+}
+
 function parseRow<T>(row: { data: string } | null): T | null {
   return row ? (JSON.parse(row.data) as T) : null;
 }
 
-function seasonIdFor(
+const parentReferences: Partial<
+  Record<string, { collection: string; field: string }>
+> = {
+  mesocycles: { collection: "macrocycles", field: "macrocycleId" },
+  microcycles: { collection: "mesocycles", field: "mesocycleId" },
+  microcycle_segments: {
+    collection: "microcycles",
+    field: "microcycleId",
+  },
+  training_sessions: { collection: "training_days", field: "trainingDayId" },
+  session_equipment: {
+    collection: "training_sessions",
+    field: "sessionId",
+  },
+};
+
+class InvalidStorageMutationError extends Error {}
+
+async function seasonIdFor(
+  db: D1Database,
   collection: string,
   entity: StoredEntity,
   options: RevisionOptions,
-) {
-  const seasonId =
-    options.revision?.seasonId ??
-    (collection === "configuration_values"
-      ? "__global_configuration__"
-      : undefined) ??
-    (collection === "seasons" ? entity.id : entity.seasonId);
-  if (!seasonId)
-    throw new Error(
-      `Revision context with seasonId required for ${collection}`,
+): Promise<string> {
+  let seasonId: string | undefined;
+  if (collection === "configuration_values") {
+    seasonId = "__global_configuration__";
+  } else if (collection === "seasons") {
+    seasonId = entity.id;
+  } else if (typeof entity.seasonId === "string" && entity.seasonId) {
+    seasonId = entity.seasonId;
+  } else {
+    const reference = parentReferences[collection];
+    const parentId = reference ? entity[reference.field] : undefined;
+    if (reference && typeof parentId === "string") {
+      const parent = await currentEntity(db, reference.collection, parentId);
+      if (parent) {
+        seasonId = await seasonIdFor(db, reference.collection, parent, {});
+      }
+    }
+  }
+  if (!seasonId) {
+    throw new InvalidStorageMutationError(
+      `Valid season scope required for ${collection}`,
     );
+  }
+  if (options.revision?.seasonId && options.revision.seasonId !== seasonId) {
+    throw new InvalidStorageMutationError(
+      `Revision season does not match ${collection} season scope`,
+    );
+  }
+  if (collection !== "seasons" && collection !== "configuration_values") {
+    const season = await currentEntity(db, "seasons", seasonId);
+    if (!season || season.deletedAt) {
+      throw new InvalidStorageMutationError("Active season not found");
+    }
+  }
   return seasonId;
 }
 
@@ -111,7 +168,44 @@ async function currentEntity(db: D1Database, collection: string, id: string) {
 }
 
 function conflict(expectedVersion: number, actualVersion: number | null) {
-  return json({ expectedVersion, actualVersion }, 409);
+  return json(
+    {
+      error: {
+        code: "VERSION_CONFLICT",
+        message: "Die Daten wurden zwischenzeitlich geändert.",
+      },
+      expectedVersion,
+      actualVersion,
+    },
+    409,
+  );
+}
+
+async function databaseSnapshot(db: D1Database): Promise<StorageSnapshot> {
+  const rows = await db
+    .prepare(
+      "SELECT collection, data FROM storage_entities WHERE collection != 'revisions' ORDER BY collection, id",
+    )
+    .all<{ collection: string; data: string }>();
+  const snapshot: Record<string, unknown[]> = {};
+  for (const row of rows.results ?? []) {
+    (snapshot[row.collection] ??= []).push(JSON.parse(row.data));
+  }
+  return snapshot as StorageSnapshot;
+}
+
+async function validateCandidate(
+  db: D1Database,
+  collection: StorageCollection,
+  entity: StoredEntity,
+): Promise<SnapshotValidationIssue | null> {
+  const snapshot = await databaseSnapshot(db);
+  const rows = [...(snapshot[collection] ?? [])].filter(
+    (row) => (row as { id?: string }).id !== entity.id,
+  );
+  rows.push(entity);
+  snapshot[collection] = rows;
+  return validateStorageSnapshot(snapshot, { allowRevisions: true })[0] ?? null;
 }
 
 async function putEntity(
@@ -133,7 +227,20 @@ async function putEntity(
   const timestamp = new Date().toISOString();
   const next = { ...entity, version: (actual ?? 0) + 1 };
   if ("updatedAt" in next) next.updatedAt = timestamp;
-  const seasonId = seasonIdFor(collection, next, options);
+  const validationIssue = await validateCandidate(
+    db,
+    collection as StorageCollection,
+    next,
+  );
+  if (validationIssue) {
+    return apiError(
+      400,
+      validationIssue.code,
+      validationIssue.message,
+      validationIssue,
+    );
+  }
+  const seasonId = await seasonIdFor(db, collection, next, options);
   const revision = {
     id: crypto.randomUUID(),
     seasonId,
@@ -175,20 +282,14 @@ async function putEntity(
           next.deletedAt ?? null,
           JSON.stringify(next),
         );
-  const writeResult = await write.run();
-  if ((writeResult.meta.changes ?? 0) !== 1) {
-    return conflict(
-      expected ?? 0,
-      (await currentEntity(db, collection, entity.id))?.version ?? null,
-    );
-  }
-  await db
+  const revisionWrite = db
     .prepare(
       `INSERT INTO storage_entities (collection, id, season_id, version, deleted_at, data)
       SELECT 'revisions', ?, ?, NULL, NULL,
         json_set(?, '$.revisionNumber', COALESCE((SELECT MAX(CAST(json_extract(data, '$.revisionNumber') AS INTEGER))
           FROM storage_entities WHERE collection = 'revisions' AND season_id = ?), 0) + 1)
-      WHERE EXISTS (SELECT 1 FROM storage_entities WHERE collection = ? AND id = ? AND version = ?)`,
+      WHERE changes() = 1
+        AND EXISTS (SELECT 1 FROM storage_entities WHERE collection = ? AND id = ? AND version = ?)`,
     )
     .bind(
       revision.id,
@@ -198,8 +299,14 @@ async function putEntity(
       collection,
       next.id,
       next.version,
-    )
-    .run();
+    );
+  const [writeResult] = await db.batch([write, revisionWrite]);
+  if ((writeResult.meta.changes ?? 0) !== 1) {
+    return conflict(
+      expected ?? 0,
+      (await currentEntity(db, collection, entity.id))?.version ?? null,
+    );
+  }
   return json(next);
 }
 
@@ -220,7 +327,7 @@ async function softDeleteEntity(
     deletedAt: timestamp,
   };
   if ("updatedAt" in next) next.updatedAt = timestamp;
-  const seasonId = seasonIdFor(collection, next, options);
+  const seasonId = await seasonIdFor(db, collection, next, options);
   const revision = {
     id: crypto.randomUUID(),
     seasonId,
@@ -233,7 +340,7 @@ async function softDeleteEntity(
     afterJson: next,
     editorLabel: options.revision?.editorLabel,
   };
-  const writeResult = await db
+  const write = db
     .prepare(
       `UPDATE storage_entities SET version = ?, deleted_at = ?, data = ?
       WHERE collection = ? AND id = ? AND version = ?`,
@@ -245,21 +352,15 @@ async function softDeleteEntity(
       collection,
       id,
       options.expectedVersion,
-    )
-    .run();
-  if ((writeResult.meta.changes ?? 0) !== 1) {
-    return conflict(
-      options.expectedVersion,
-      (await currentEntity(db, collection, id))?.version ?? null,
     );
-  }
-  await db
+  const revisionWrite = db
     .prepare(
       `INSERT INTO storage_entities (collection, id, season_id, version, deleted_at, data)
       SELECT 'revisions', ?, ?, NULL, NULL,
         json_set(?, '$.revisionNumber', COALESCE((SELECT MAX(CAST(json_extract(data, '$.revisionNumber') AS INTEGER))
           FROM storage_entities WHERE collection = 'revisions' AND season_id = ?), 0) + 1)
-      WHERE EXISTS (SELECT 1 FROM storage_entities WHERE collection = ? AND id = ? AND version = ?)`,
+      WHERE changes() = 1
+        AND EXISTS (SELECT 1 FROM storage_entities WHERE collection = ? AND id = ? AND version = ?)`,
     )
     .bind(
       revision.id,
@@ -269,14 +370,28 @@ async function softDeleteEntity(
       collection,
       id,
       next.version,
-    )
-    .run();
+    );
+  const [writeResult] = await db.batch([write, revisionWrite]);
+  if ((writeResult.meta.changes ?? 0) !== 1) {
+    return conflict(
+      options.expectedVersion,
+      (await currentEntity(db, collection, id))?.version ?? null,
+    );
+  }
   return new Response(null, { status: 204 });
 }
 
 async function purgeSeasonEntity(db: D1Database, seasonId: string) {
   const season = await currentEntity(db, "seasons", seasonId);
-  if (!season) return json({ error: "Season not found" }, 404);
+  if (!season) return apiError(404, "NOT_FOUND", "Season not found");
+  if (!season.deletedAt) {
+    return apiError(
+      409,
+      "SEASON_NOT_DELETED",
+      "Only soft-deleted seasons can be purged",
+      { collection: "seasons", entityId: seasonId },
+    );
+  }
   await db
     .prepare("DELETE FROM storage_entities WHERE season_id = ?")
     .bind(seasonId)
@@ -296,34 +411,21 @@ function importSnapshotError(
     typeof body.snapshot !== "object" ||
     Array.isArray(body.snapshot)
   ) {
-    return json({ error: "Import requires a snapshot object" }, 400);
+    return apiError(400, "INVALID_IMPORT", "Import requires a snapshot object");
   }
   const snapshot = body.snapshot as Record<string, unknown>;
   for (const [name, entities] of Object.entries(snapshot)) {
     if (!collections.has(name))
-      return json({ error: `Unknown collection ${name}` }, 400);
+      return apiError(400, "UNKNOWN_COLLECTION", `Unknown collection ${name}`);
     if (!Array.isArray(entities))
-      return json({ error: `${name} must be a list` }, 400);
-    for (const entity of entities) {
-      if (!entity || typeof entity !== "object" || Array.isArray(entity)) {
-        return json({ error: `${name} contains an invalid entity` }, 400);
-      }
-      const row = entity as { id?: unknown; version?: unknown };
-      if (typeof row.id !== "string" || row.id.length === 0)
-        return json({ error: `${name} entity requires a string id` }, 400);
-      if (
-        typeof row.version !== "number" ||
-        !Number.isInteger(row.version) ||
-        row.version < 0
-      ) {
-        return json(
-          { error: `${name} entity requires a non-negative integer version` },
-          400,
-        );
-      }
-    }
+      return apiError(400, "INVALID_COLLECTION", `${name} must be a list`, {
+        collection: name as StorageCollection,
+      });
   }
-  return { snapshot: snapshot as Record<string, StoredEntity[]> };
+  const typedSnapshot = snapshot as StorageSnapshot;
+  const issue = validateStorageSnapshot(typedSnapshot)[0];
+  if (issue) return apiError(400, issue.code, issue.message, issue);
+  return { snapshot: typedSnapshot as Record<string, StoredEntity[]> };
 }
 
 export async function storageRequest(
@@ -353,7 +455,7 @@ export async function storageRequest(
     try {
       body = await request.json();
     } catch {
-      return json({ error: "Import requires valid JSON" }, 400);
+      return apiError(400, "INVALID_JSON", "Import requires valid JSON");
     }
     const parsed = importSnapshotError(body);
     if (parsed instanceof Response) return parsed;
@@ -369,7 +471,15 @@ export async function storageRequest(
           entity as Record<string, unknown>,
         );
         if (!scope)
-          return json({ error: `Missing season scope for ${name}` }, 400);
+          return apiError(
+            400,
+            "MISSING_SEASON_SCOPE",
+            `Missing season scope for ${name}`,
+            {
+              collection: name as StorageCollection,
+              entityId: entity.id,
+            },
+          );
         const current = await currentEntity(env.DB, name, entity.id);
         if (current && current.version !== entity.version)
           return conflict(entity.version, current.version);
@@ -416,7 +526,7 @@ export async function storageRequest(
     return new Response(null, { status: 204 });
   }
   if (!collection || !collections.has(collection))
-    return json({ error: "Unknown collection" }, 404);
+    return apiError(404, "UNKNOWN_COLLECTION", "Unknown collection");
   if (request.method === "GET" && collection === "revisions" && !parts[1]) {
     const seasonId = url.searchParams.get("seasonId");
     const rows = await env.DB.prepare(
@@ -447,31 +557,106 @@ export async function storageRequest(
     return json((rows.results ?? []).map((row) => JSON.parse(row.data)));
   }
   if (!parts[1] || collection === "revisions")
-    return json({ error: "Invalid request" }, 400);
+    return apiError(400, "INVALID_REQUEST", "Invalid request");
   if (request.method === "PUT") {
-    const { entity, options = {} } = (await request.json()) as {
+    let body: unknown;
+    try {
+      body = await request.json();
+    } catch {
+      return apiError(400, "INVALID_JSON", "Request requires valid JSON");
+    }
+    if (!body || typeof body !== "object" || Array.isArray(body)) {
+      return apiError(400, "INVALID_REQUEST", "Request body must be an object");
+    }
+    const { entity, options = {} } = body as {
       entity: StoredEntity;
       options?: RevisionOptions;
     };
+    const parsedEntity = validateStorageEntity(
+      collection as StorageCollection,
+      entity,
+    );
+    if (!parsedEntity.success) {
+      return apiError(
+        400,
+        parsedEntity.issue.code,
+        parsedEntity.issue.message,
+        parsedEntity.issue,
+      );
+    }
+    if (
+      !options ||
+      typeof options !== "object" ||
+      (options.expectedVersion !== undefined &&
+        (!Number.isInteger(options.expectedVersion) ||
+          options.expectedVersion < 0))
+    ) {
+      return apiError(
+        400,
+        "INVALID_VERSION",
+        "expectedVersion must be a non-negative integer",
+      );
+    }
     if (entity.id !== decodeURIComponent(parts[1]))
-      return json({ error: "ID mismatch" }, 400);
-    return putEntity(env.DB, collection, entity, options);
+      return apiError(400, "ID_MISMATCH", "ID mismatch", {
+        collection: collection as StorageCollection,
+        entityId: entity.id,
+        path: "id",
+      });
+    try {
+      return await putEntity(env.DB, collection, entity, options);
+    } catch (error) {
+      if (error instanceof InvalidStorageMutationError) {
+        return apiError(400, "INVALID_SCOPE", error.message, {
+          collection: collection as StorageCollection,
+          entityId: entity.id,
+        });
+      }
+      throw error;
+    }
   }
   if (request.method === "DELETE" && parts[2] === "purge") {
     if (collection !== "seasons" || !parts[1])
-      return json({ error: "Invalid request" }, 400);
+      return apiError(400, "INVALID_REQUEST", "Invalid request");
     return purgeSeasonEntity(env.DB, decodeURIComponent(parts[1]));
   }
   if (request.method === "DELETE") {
-    const { options } = (await request.json()) as {
+    let body: unknown;
+    try {
+      body = await request.json();
+    } catch {
+      return apiError(400, "INVALID_JSON", "Request requires valid JSON");
+    }
+    const { options } = (body ?? {}) as {
       options: RevisionOptions & { expectedVersion: number };
     };
-    return softDeleteEntity(
-      env.DB,
-      collection,
-      decodeURIComponent(parts[1]),
-      options,
-    );
+    if (
+      !options ||
+      !Number.isInteger(options.expectedVersion) ||
+      options.expectedVersion < 0
+    ) {
+      return apiError(
+        400,
+        "INVALID_VERSION",
+        "expectedVersion must be a non-negative integer",
+      );
+    }
+    try {
+      return await softDeleteEntity(
+        env.DB,
+        collection,
+        decodeURIComponent(parts[1]),
+        options,
+      );
+    } catch (error) {
+      if (error instanceof InvalidStorageMutationError) {
+        return apiError(400, "INVALID_SCOPE", error.message, {
+          collection: collection as StorageCollection,
+          entityId: decodeURIComponent(parts[1]),
+        });
+      }
+      throw error;
+    }
   }
-  return json({ error: "Method not allowed" }, 405);
+  return apiError(405, "METHOD_NOT_ALLOWED", "Method not allowed");
 }

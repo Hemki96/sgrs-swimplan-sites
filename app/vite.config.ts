@@ -5,6 +5,7 @@ import { sites } from "./build/sites-vite-plugin";
 
 const { d1, r2 } = hostingConfig;
 const isCodexSeatbeltSandbox = process.env.CODEX_SANDBOX === "seatbelt";
+const e2ePersistPath = process.env.E2E_D1_PERSIST_PATH;
 
 export default defineConfig(async () => {
   process.env.WRANGLER_WRITE_LOGS ??= "false";
@@ -20,6 +21,8 @@ export default defineConfig(async () => {
       sites(),
       cloudflare({
         viteEnvironment: { name: "rsc", childEnvironments: ["ssr"] },
+        persistState: e2ePersistPath ? { path: e2ePersistPath } : true,
+        remoteBindings: false,
         config: {
           main: "./worker/index.ts",
           compatibility_flags: ["nodejs_compat"],

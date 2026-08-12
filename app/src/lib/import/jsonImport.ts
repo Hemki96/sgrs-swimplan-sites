@@ -4,6 +4,7 @@ import type {
   StorageSnapshot,
 } from "../storage/StorageAdapter";
 import { EXPORT_COLLECTION_KEYS } from "../storage/StorageAdapter";
+import { validateStorageSnapshot } from "../validation/storage";
 
 export interface ImportDocument {
   schemaVersion: "1.0" | 1 | 2;
@@ -56,6 +57,14 @@ export function parseImport(text: string): ImportPreview {
     if (!season.id || !season.name || !season.startDate || !season.endDate)
       errors.push("Mindestens eine Saison ist unvollständig.");
   }
+  errors.push(
+    ...validateStorageSnapshot(snapshot, { allowRevisions: true }).map(
+      (issue) =>
+        [issue.collection, issue.entityId, issue.path]
+          .filter(Boolean)
+          .join(" / ") + `: ${issue.message}`,
+    ),
+  );
   const document: ImportDocument = {
     schemaVersion: version ?? "1.0",
     exportedAt: typeof raw.exportedAt === "string" ? raw.exportedAt : "",
@@ -130,6 +139,10 @@ export function buildImportSnapshot(
       deletedAt: undefined,
     }),
   );
+  const validationIssues = validateStorageSnapshot(remapped);
+  if (validationIssues.length) {
+    throw new Error(validationIssues[0].message);
+  }
   return remapped;
 }
 

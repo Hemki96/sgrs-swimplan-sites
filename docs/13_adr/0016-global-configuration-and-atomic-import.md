@@ -28,6 +28,13 @@ Mutation muss weiterhin eine Revision erzeugen.
    Version 1 bleibt als Importquelle lesbar.
 5. Ein bestätigter Import wird als eine atomare Adapter-Operation ausgeführt.
    Saison-IDs und abhängige IDs werden vor der Mutation neu vergeben.
+6. Vorschau und Worker verwenden denselben vollständigen Snapshot-Validator.
+   Zuerst werden alle Entitäten syntaktisch validiert, danach IDs, Relationen,
+   Saison-Scope und Zeitraumhierarchien. Erst ein fehlerfreier Snapshot darf
+   einen D1-Batch erzeugen.
+7. Exportierte Revisionen dienen dem Backup und der Anzeige, werden bei einem
+   ausgewählten Saisonimport aber nicht wieder eingespielt. Der Import erzeugt
+   neue Revisionen für die tatsächlich neu geschriebenen Entitäten.
 
 ## Alternativen
 
@@ -43,3 +50,5 @@ Mutation muss weiterhin eine Revision erzeugen.
 - Fachliche Formulare können Labels und aktive Optionen zur Laufzeit laden.
 - Der Import benötigt vor der Bestätigung eine vollständige validierte Vorschau.
 - Die reservierte Scope-ID darf nicht als Saison-ID verwendet werden.
+- Ein Validierungs- oder Versionsfehler vor beziehungsweise im D1-Batch
+  hinterlässt keinen Teilimport.

@@ -845,7 +845,14 @@ export class SeasonPlanningService {
     );
   }
 
-  deleteTrainingDay(day: TrainingDay): Promise<void> {
+  async deleteTrainingDay(day: TrainingDay): Promise<void> {
+    const sessions =
+      await this.storage.list<TrainingSession>("training_sessions");
+    if (sessions.some((session) => session.trainingDayId === day.id)) {
+      throw new PlanningValidationError(
+        "Ein Trainingstag mit Sessions kann nicht gelöscht werden.",
+      );
+    }
     return this.storage.softDelete("training_days", day.id, {
       expectedVersion: day.version,
       revision: this.revision(day.seasonId),
@@ -877,6 +884,30 @@ export class SeasonPlanningService {
       throw new PlanningValidationError(
         "Trainingstag gehört nicht zur Saison.",
       );
+    if (current) {
+      const persisted = await this.storage.get<TrainingSession>(
+        "training_sessions",
+        current.id,
+      );
+      if (
+        !persisted ||
+        persisted.version !== current.version ||
+        persisted.trainingDayId !== current.trainingDayId
+      ) {
+        throw new PlanningValidationError(
+          "Die zu bearbeitende Session ist nicht mehr aktuell.",
+        );
+      }
+      const currentDay = await this.storage.get<TrainingDay>(
+        "training_days",
+        current.trainingDayId,
+      );
+      if (!currentDay || currentDay.seasonId !== seasonId) {
+        throw new PlanningValidationError(
+          "Session gehört nicht zu dieser Saison.",
+        );
+      }
+    }
     const template = current?.scheduleTemplateId
       ? await this.storage.get<TrainingScheduleTemplate>(
           "training_schedule_templates",
@@ -923,10 +954,19 @@ export class SeasonPlanningService {
     );
   }
 
-  deleteTrainingSession(
+  async deleteTrainingSession(
     seasonId: string,
     session: TrainingSession,
   ): Promise<void> {
+    const day = await this.storage.get<TrainingDay>(
+      "training_days",
+      session.trainingDayId,
+    );
+    if (!day || day.seasonId !== seasonId) {
+      throw new PlanningValidationError(
+        "Session gehört nicht zu dieser Saison.",
+      );
+    }
     return this.storage.softDelete("training_sessions", session.id, {
       expectedVersion: session.version,
       revision: this.revision(seasonId),
