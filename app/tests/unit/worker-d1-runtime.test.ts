@@ -53,6 +53,78 @@ const putSeason = (db: D1Database, entity: unknown, expectedVersion: number) =>
   );
 
 describe("Worker storage on the provisioned D1 runtime (DB binding)", () => {
+  it("quarantines invalid legacy rows from reads, exports, and write validation", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "sgrs-swimplan-d1-legacy-"));
+    try {
+      await withD1(dir, async (db) => {
+        await storageRequest(
+          new Request("http://site.test/api/storage/configuration_values"),
+          { DB: db },
+        );
+        await db
+          .prepare(
+            `INSERT INTO storage_entities
+              (collection, id, season_id, version, deleted_at, data)
+             VALUES (?, ?, ?, ?, ?, ?)`,
+          )
+          .bind(
+            "configuration_values",
+            "legacy-calendar-system",
+            "__global_configuration__",
+            1,
+            null,
+            JSON.stringify({
+              id: "legacy-calendar-system",
+              version: 1,
+              key: "calendarSystem",
+              value: "ISO-8601",
+            }),
+          )
+          .run();
+
+        const list = await storageRequest(
+          new Request("http://site.test/api/storage/configuration_values"),
+          { DB: db },
+        );
+        expect(await list.json()).toEqual([]);
+
+        const create = await storageRequest(
+          new Request(
+            "http://site.test/api/storage/configuration_values/config-season_status-draft",
+            {
+              method: "PUT",
+              headers: { "content-type": "application/json" },
+              body: JSON.stringify({
+                entity: {
+                  id: "config-season_status-draft",
+                  group: "season_status",
+                  code: "draft",
+                  label: "Entwurf",
+                  sortOrder: 0,
+                  active: true,
+                  version: 0,
+                },
+                options: { expectedVersion: 0 },
+              }),
+            },
+          ),
+          { DB: db },
+        );
+        expect(create.status).toBe(200);
+
+        const exported = await storageRequest(
+          new Request("http://site.test/api/storage/export"),
+          { DB: db },
+        );
+        const body = JSON.stringify(await exported.json());
+        expect(body).not.toContain("legacy-calendar-system");
+        expect(body).toContain("config-season_status-draft");
+      });
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
   it("persists a write across a runtime restart (smoke reload roundtrip)", async () => {
     const dir = await mkdtemp(join(tmpdir(), "sgrs-swimplan-d1-persist-"));
     try {
