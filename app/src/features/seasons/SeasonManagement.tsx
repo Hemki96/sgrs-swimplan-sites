@@ -19,7 +19,7 @@ import {
 import type { PlanningView } from "./SeasonPlanning";
 import { preferredSeason, seasonIdFromPath } from "./seasonNavigation";
 import { ConfigurationService } from "../../lib/domain/configuration";
-import { fieldErrors } from "../forms/errors";
+import { errorMessage, fieldErrors } from "../forms/errors";
 import { SeasonEditor } from "./SeasonEditor";
 
 const SeasonPlanning = lazy(() =>
@@ -121,7 +121,7 @@ export function SeasonManagement({
         const next = sortSeasons(rows);
         setSeasons(next);
         setLoaded(true);
-        if (!initialSeasonId && !selectedId) {
+        if (!initialSeasonId) {
           const preferred = preferredSeason(next);
           if (preferred) {
             setSelectedId(preferred.id);
@@ -135,7 +135,7 @@ export function SeasonManagement({
     return () => {
       active = false;
     };
-  }, [initialSeasonId, selectedId, service, storage]);
+  }, [initialSeasonId, service, storage]);
 
   useEffect(() => {
     const configuration = new ConfigurationService(storage);
@@ -233,8 +233,13 @@ export function SeasonManagement({
       setFormOpen(false);
       await reload();
       choose(saved);
-    } catch {
-      setErrors({ form: "Speichern fehlgeschlagen. Bitte erneut versuchen." });
+    } catch (error) {
+      setErrors({
+        form: errorMessage(
+          error,
+          "Speichern fehlgeschlagen. Bitte erneut versuchen.",
+        ),
+      });
     } finally {
       setSaving(false);
     }

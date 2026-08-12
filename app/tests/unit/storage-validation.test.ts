@@ -121,4 +121,38 @@ describe("persisted storage validation", () => {
       }),
     ).toMatchObject([{ code: "REVISIONS_NOT_IMPORTABLE" }]);
   });
+
+  it("rejects duplicate normalized season names including soft-deleted rows", () => {
+    const base = {
+      startDate: "2026-08-01",
+      endDate: "2027-07-31",
+      description: "",
+      mainGoal: "",
+      status: "draft",
+      createdAt: "2026-08-01T00:00:00.000Z",
+      updatedAt: "2026-08-01T00:00:00.000Z",
+      version: 1,
+    } as const;
+
+    expect(
+      validateStorageSnapshot({
+        seasons: [
+          { ...base, id: "season-1", name: "Saison 2026/27" },
+          {
+            ...base,
+            id: "season-2",
+            name: " saison 2026/27 ",
+            deletedAt: "2026-08-09T12:00:00.000Z",
+          },
+        ],
+      }),
+    ).toMatchObject([
+      {
+        code: "DUPLICATE_SEASON_NAME",
+        collection: "seasons",
+        entityId: "season-2",
+        path: "name",
+      },
+    ]);
+  });
 });

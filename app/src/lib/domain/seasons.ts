@@ -1,6 +1,10 @@
 import type { Season } from "./types";
 import type { StorageAdapter } from "../storage/StorageAdapter";
-import { seasonInputSchema, type SeasonInput } from "../validation/domain";
+import {
+  normalizeSeasonName,
+  seasonInputSchema,
+  type SeasonInput,
+} from "../validation/domain";
 
 export interface SeasonDomainDependencies {
   createId?: () => string;
@@ -25,6 +29,7 @@ export class SeasonService {
 
   async create(input: SeasonInput): Promise<Season> {
     const values = seasonInputSchema.parse(input);
+    await this.assertUniqueName(values.name);
     const timestamp = this.now();
     const season: Season = {
       id: this.createId(),
@@ -41,6 +46,7 @@ export class SeasonService {
 
   async update(season: Season, input: SeasonInput): Promise<Season> {
     const values = seasonInputSchema.parse(input);
+    await this.assertUniqueName(values.name, season.id);
     return this.storage.put(
       "seasons",
       { ...season, ...values },
@@ -66,6 +72,7 @@ export class SeasonService {
       (season) => season.id === id && season.deletedAt,
     );
     if (!deleted) throw new Error("Deleted season not found");
+    await this.assertUniqueName(deleted.name, deleted.id);
     return this.storage.put(
       "seasons",
       { ...deleted, deletedAt: null },
@@ -83,5 +90,21 @@ export class SeasonService {
       );
     }
     return this.storage.purgeSeason(season.id);
+  }
+
+  private async assertUniqueName(name: string, exceptId?: string) {
+    const normalized = normalizeSeasonName(name);
+    const seasons = await this.storage.list<Season>("seasons", {
+      includeDeleted: true,
+    });
+    if (
+      seasons.some(
+        (season) =>
+          season.id !== exceptId &&
+          normalizeSeasonName(season.name) === normalized,
+      )
+    ) {
+      throw new Error("Eine Saison mit diesem Namen existiert bereits.");
+    }
   }
 }

@@ -85,8 +85,11 @@ export class SitesStorageAdapter implements StorageAdapter {
     collection: StorageCollection,
     options: ListOptions = {},
   ): Promise<T[]> {
-    const query = options.includeDeleted ? "?includeDeleted=true" : "";
-    return this.request(`/${collection}${query}`);
+    const query = new URLSearchParams();
+    if (options.includeDeleted) query.set("includeDeleted", "true");
+    if (options.seasonId) query.set("seasonId", options.seasonId);
+    const suffix = query.size ? `?${query.toString()}` : "";
+    return this.request(`/${collection}${suffix}`);
   }
 
   put<T extends StoredEntity>(

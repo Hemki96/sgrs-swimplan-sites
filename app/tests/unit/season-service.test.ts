@@ -82,6 +82,31 @@ describe("SeasonService", () => {
     await expect(storage.list("seasons")).resolves.toEqual([]);
   });
 
+  it("rejects duplicate season names independent of whitespace and casing", async () => {
+    const created = await service.create(input);
+    const secondService = new SeasonService(storage, {
+      createId: () => "season-id-2",
+      now: () => "2026-08-09T11:00:00.000Z",
+    });
+
+    await expect(
+      secondService.create({ ...input, name: "  saison 2026/27  " }),
+    ).rejects.toThrow("Eine Saison mit diesem Namen existiert bereits.");
+    await expect(service.list()).resolves.toEqual([created]);
+  });
+
+  it("keeps soft-deleted season names reserved until permanent deletion", async () => {
+    const created = await service.create(input);
+    await service.delete(created);
+    const secondService = new SeasonService(storage, {
+      createId: () => "season-id-2",
+    });
+
+    await expect(secondService.create(input)).rejects.toThrow(
+      "Eine Saison mit diesem Namen existiert bereits.",
+    );
+  });
+
   it("refuses to purge a season that is not soft deleted", async () => {
     const created = await service.create(input);
     await expect(service.purge(created)).rejects.toThrow(

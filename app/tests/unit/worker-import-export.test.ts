@@ -142,7 +142,8 @@ class MockD1 {
   write(sql: string, values: unknown[]) {
     if (
       sql.includes("CREATE TABLE IF NOT EXISTS") ||
-      sql.includes("CREATE INDEX IF NOT EXISTS")
+      sql.includes("CREATE INDEX IF NOT EXISTS") ||
+      sql.includes("CREATE UNIQUE INDEX IF NOT EXISTS")
     ) {
       return { meta: { changes: 0 } };
     }

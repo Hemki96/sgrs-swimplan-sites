@@ -34,3 +34,6 @@ BR-028 Ein deaktiviertes Template erzeugt keine neuen Sessions; bestehende
 bleiben erhalten.
 BR-029 Sessions innerhalb einer Kalenderrestriktion bleiben bestehen und zeigen
 eine Warnung.
+BR-030 Saisonnamen sind nach Trimmen, Unicode-Normalisierung und
+Groß-/Kleinschreibung eindeutig. Weich gelöschte Saisons reservieren ihren
+Namen bis zur endgültigen Löschung.

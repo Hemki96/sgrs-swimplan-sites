@@ -99,9 +99,9 @@ export class SeasonPlanningService {
   }
 
   async listTracks(seasonId: string): Promise<EventTrack[]> {
-    return (await this.storage.list<EventTrack>("event_tracks"))
-      .filter((track) => track.seasonId === seasonId)
-      .sort((left, right) => left.sortOrder - right.sortOrder);
+    return (
+      await this.storage.list<EventTrack>("event_tracks", { seasonId })
+    ).sort((left, right) => left.sortOrder - right.sortOrder);
   }
 
   async createTrack(
@@ -147,9 +147,9 @@ export class SeasonPlanningService {
   }
 
   async listEvents(seasonId: string): Promise<Event[]> {
-    return (await this.storage.list<Event>("events"))
-      .filter((event) => event.seasonId === seasonId)
-      .sort((left, right) => left.startDate.localeCompare(right.startDate));
+    return (await this.storage.list<Event>("events", { seasonId })).sort(
+      (left, right) => left.startDate.localeCompare(right.startDate),
+    );
   }
 
   async createEvent(seasonId: string, input: EventInput): Promise<Event> {
@@ -194,9 +194,11 @@ export class SeasonPlanningService {
   }
 
   async listConstraints(seasonId: string): Promise<CalendarConstraint[]> {
-    return (await this.storage.list<CalendarConstraint>("calendar_constraints"))
-      .filter((constraint) => constraint.seasonId === seasonId)
-      .sort((left, right) => left.startDate.localeCompare(right.startDate));
+    return (
+      await this.storage.list<CalendarConstraint>("calendar_constraints", {
+        seasonId,
+      })
+    ).sort((left, right) => left.startDate.localeCompare(right.startDate));
   }
 
   async createConstraint(
@@ -238,9 +240,9 @@ export class SeasonPlanningService {
   }
 
   async listMacrocycles(seasonId: string): Promise<Macrocycle[]> {
-    return (await this.storage.list<Macrocycle>("macrocycles"))
-      .filter((macrocycle) => macrocycle.seasonId === seasonId)
-      .sort((left, right) => left.startDate.localeCompare(right.startDate));
+    return (
+      await this.storage.list<Macrocycle>("macrocycles", { seasonId })
+    ).sort((left, right) => left.startDate.localeCompare(right.startDate));
   }
 
   async createMacrocycle(
@@ -303,12 +305,9 @@ export class SeasonPlanningService {
   }
 
   async listMesocycles(seasonId: string): Promise<Mesocycle[]> {
-    const macrocycleIds = new Set(
-      (await this.listMacrocycles(seasonId)).map((macrocycle) => macrocycle.id),
-    );
-    return (await this.storage.list<Mesocycle>("mesocycles"))
-      .filter((mesocycle) => macrocycleIds.has(mesocycle.macrocycleId))
-      .sort((left, right) => left.startDate.localeCompare(right.startDate));
+    return (
+      await this.storage.list<Mesocycle>("mesocycles", { seasonId })
+    ).sort((left, right) => left.startDate.localeCompare(right.startDate));
   }
 
   async createMesocycle(input: MesocycleInput): Promise<Mesocycle> {
@@ -378,12 +377,9 @@ export class SeasonPlanningService {
   }
 
   async listMicrocycles(seasonId: string): Promise<Microcycle[]> {
-    const mesocycleIds = new Set(
-      (await this.listMesocycles(seasonId)).map((mesocycle) => mesocycle.id),
-    );
-    return (await this.storage.list<Microcycle>("microcycles"))
-      .filter((microcycle) => mesocycleIds.has(microcycle.mesocycleId))
-      .sort((left, right) => left.startDate.localeCompare(right.startDate));
+    return (
+      await this.storage.list<Microcycle>("microcycles", { seasonId })
+    ).sort((left, right) => left.startDate.localeCompare(right.startDate));
   }
 
   async createMicrocycle(input: MicrocycleInput): Promise<Microcycle> {
@@ -465,16 +461,15 @@ export class SeasonPlanningService {
   }
 
   async listMicrocycleSegments(seasonId: string): Promise<MicrocycleSegment[]> {
-    const microcycleIds = new Set(
-      (await this.listMicrocycles(seasonId)).map((microcycle) => microcycle.id),
+    return (
+      await this.storage.list<MicrocycleSegment>("microcycle_segments", {
+        seasonId,
+      })
+    ).sort(
+      (left, right) =>
+        left.sortOrder - right.sortOrder ||
+        left.startDate.localeCompare(right.startDate),
     );
-    return (await this.storage.list<MicrocycleSegment>("microcycle_segments"))
-      .filter((segment) => microcycleIds.has(segment.microcycleId))
-      .sort(
-        (left, right) =>
-          left.sortOrder - right.sortOrder ||
-          left.startDate.localeCompare(right.startDate),
-      );
   }
 
   async createMicrocycleSegment(
@@ -613,14 +608,12 @@ export class SeasonPlanningService {
     return (
       await this.storage.list<PeriodizationDimension>(
         "periodization_dimensions",
+        { seasonId },
       )
-    )
-      .filter((dimension) => dimension.seasonId === seasonId)
-      .sort(
-        (left, right) =>
-          left.sortOrder - right.sortOrder ||
-          left.name.localeCompare(right.name),
-      );
+    ).sort(
+      (left, right) =>
+        left.sortOrder - right.sortOrder || left.name.localeCompare(right.name),
+    );
   }
 
   async createDimension(
@@ -680,9 +673,11 @@ export class SeasonPlanningService {
   }
 
   async listFocusDefinitions(seasonId: string): Promise<FocusDefinition[]> {
-    return (await this.storage.list<FocusDefinition>("focus_definitions"))
-      .filter((definition) => definition.seasonId === seasonId)
-      .sort((left, right) => left.name.localeCompare(right.name));
+    return (
+      await this.storage.list<FocusDefinition>("focus_definitions", {
+        seasonId,
+      })
+    ).sort((left, right) => left.name.localeCompare(right.name));
   }
 
   async createFocusDefinition(
@@ -746,9 +741,9 @@ export class SeasonPlanningService {
   }
 
   async listFocusSegments(seasonId: string): Promise<FocusSegment[]> {
-    return (await this.storage.list<FocusSegment>("focus_segments"))
-      .filter((segment) => segment.seasonId === seasonId)
-      .sort((left, right) => left.startDate.localeCompare(right.startDate));
+    return (
+      await this.storage.list<FocusSegment>("focus_segments", { seasonId })
+    ).sort((left, right) => left.startDate.localeCompare(right.startDate));
   }
 
   async createFocusSegment(
@@ -812,9 +807,9 @@ export class SeasonPlanningService {
   }
 
   async listTrainingDays(seasonId: string): Promise<TrainingDay[]> {
-    return (await this.storage.list<TrainingDay>("training_days"))
-      .filter((day) => day.seasonId === seasonId)
-      .sort((left, right) => left.date.localeCompare(right.date));
+    return (
+      await this.storage.list<TrainingDay>("training_days", { seasonId })
+    ).sort((left, right) => left.date.localeCompare(right.date));
   }
 
   async createTrainingDay(
@@ -860,14 +855,13 @@ export class SeasonPlanningService {
   }
 
   async listTrainingSessions(seasonId: string): Promise<TrainingSession[]> {
-    const ids = new Set(
-      (await this.listTrainingDays(seasonId)).map((day) => day.id),
+    return (
+      await this.storage.list<TrainingSession>("training_sessions", {
+        seasonId,
+      })
+    ).sort((a, b) =>
+      (a.startTime ?? "99:99").localeCompare(b.startTime ?? "99:99"),
     );
-    return (await this.storage.list<TrainingSession>("training_sessions"))
-      .filter((session) => ids.has(session.trainingDayId))
-      .sort((a, b) =>
-        (a.startTime ?? "99:99").localeCompare(b.startTime ?? "99:99"),
-      );
   }
 
   async saveTrainingSession(
@@ -1189,11 +1183,9 @@ export class SeasonPlanningService {
   }
 
   async listEquipment(seasonId: string): Promise<EquipmentItem[]> {
-    return (await this.storage.list<EquipmentItem>("equipment_items"))
-      .filter((item) => item.seasonId === seasonId)
-      .sort(
-        (a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name),
-      );
+    return (
+      await this.storage.list<EquipmentItem>("equipment_items", { seasonId })
+    ).sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name));
   }
 
   async createEquipmentItem(

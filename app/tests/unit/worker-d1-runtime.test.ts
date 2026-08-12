@@ -119,6 +119,36 @@ describe("Worker storage on the provisioned D1 runtime (DB binding)", () => {
     }
   });
 
+  it("enforces normalized season names at the database boundary", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "sgrs-swimplan-d1-name-"));
+    try {
+      await withD1(dir, async (db) => {
+        expect((await putSeason(db, season, 0)).status).toBe(200);
+        const duplicate = await storageRequest(
+          new Request("http://site.test/api/storage/seasons/runtime-season-2", {
+            method: "PUT",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({
+              entity: {
+                ...season,
+                id: "runtime-season-2",
+                name: "  runtime smoke ",
+              },
+              options: { expectedVersion: 0 },
+            }),
+          }),
+          { DB: db },
+        );
+        expect(duplicate.status).toBe(400);
+        await expect(duplicate.json()).resolves.toMatchObject({
+          error: { code: "DUPLICATE_SEASON_NAME" },
+        });
+      });
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
   it("rejects a client-supplied revision scope that differs from the entity season", async () => {
     const dir = await mkdtemp(join(tmpdir(), "sgrs-swimplan-d1-scope-"));
     try {

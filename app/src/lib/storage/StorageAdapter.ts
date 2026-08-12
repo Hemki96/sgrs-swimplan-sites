@@ -46,6 +46,7 @@ export const EXPORT_COLLECTION_KEYS: Record<StorageCollection, string> = {
 
 export interface ListOptions {
   includeDeleted?: boolean;
+  seasonId?: Id;
 }
 
 export interface RevisionContext {

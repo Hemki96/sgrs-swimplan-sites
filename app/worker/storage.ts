@@ -74,9 +74,16 @@ const createTableSql = `CREATE TABLE IF NOT EXISTS storage_entities (
 )`;
 const createIndexSql = `CREATE INDEX IF NOT EXISTS storage_entities_season_idx
   ON storage_entities (collection, season_id, deleted_at)`;
+const createSeasonNameIndexSql = `CREATE UNIQUE INDEX IF NOT EXISTS storage_entities_season_name_idx
+  ON storage_entities (lower(trim(json_extract(data, '$.name'))))
+  WHERE collection = 'seasons'`;
 
 export async function initialize(db: D1Database) {
-  await db.batch([db.prepare(createTableSql), db.prepare(createIndexSql)]);
+  await db.batch([
+    db.prepare(createTableSql),
+    db.prepare(createIndexSql),
+    db.prepare(createSeasonNameIndexSql),
+  ]);
 }
 
 export function json(value: unknown, status = 200) {
@@ -460,6 +467,27 @@ export async function storageRequest(
     const parsed = importSnapshotError(body);
     if (parsed instanceof Response) return parsed;
     const snapshot = parsed.snapshot;
+    const candidate = await databaseSnapshot(env.DB);
+    for (const [name, entities] of Object.entries(snapshot)) {
+      const importedIds = new Set(entities.map((entity) => entity.id));
+      candidate[name as StorageCollection] = [
+        ...(candidate[name as StorageCollection] ?? []).filter(
+          (row) => !importedIds.has((row as StoredEntity).id),
+        ),
+        ...entities,
+      ];
+    }
+    const candidateIssue = validateStorageSnapshot(candidate, {
+      allowRevisions: true,
+    })[0];
+    if (candidateIssue) {
+      return apiError(
+        400,
+        candidateIssue.code,
+        candidateIssue.message,
+        candidateIssue,
+      );
+    }
     const statements: D1Statement[] = [];
     const now = new Date().toISOString();
     for (const [name, entities] of Object.entries(snapshot)) {
@@ -548,11 +576,13 @@ export async function storageRequest(
   }
   if (request.method === "GET") {
     const includeDeleted = url.searchParams.get("includeDeleted") === "true";
+    const seasonId = url.searchParams.get("seasonId");
     const rows = await env.DB.prepare(
       `SELECT data FROM storage_entities
-      WHERE collection = ? ${includeDeleted ? "" : "AND deleted_at IS NULL"} ORDER BY id`,
+      WHERE collection = ? ${includeDeleted ? "" : "AND deleted_at IS NULL"}
+      ${seasonId ? "AND season_id = ?" : ""} ORDER BY id`,
     )
-      .bind(collection)
+      .bind(...(seasonId ? [collection, seasonId] : [collection]))
       .all<{ data: string }>();
     return json((rows.results ?? []).map((row) => JSON.parse(row.data)));
   }

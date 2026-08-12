@@ -39,6 +39,19 @@ describe("SitesStorageAdapter", () => {
     );
   });
 
+  it("requests planning collections in the indexed season scope", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(Response.json([]));
+    vi.stubGlobal("fetch", fetchMock);
+    const storage = new SitesStorageAdapter("https://site.test/api/storage");
+
+    await storage.list("microcycles", { seasonId: "season 1" });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://site.test/api/storage/microcycles?seasonId=season+1",
+      expect.any(Object),
+    );
+  });
+
   it("maps HTTP conflicts to the shared version conflict error", async () => {
     vi.stubGlobal(
       "fetch",

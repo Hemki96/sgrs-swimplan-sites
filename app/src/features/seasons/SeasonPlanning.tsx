@@ -76,7 +76,7 @@ export function SeasonPlanning({
   const [bulkOpen, setBulkOpen] = useState(false);
   const [notice, setNotice] = useState("");
   const [undo, setUndo] = useState<UndoRequest | null>(null);
-  const initializationRef = useRef<Promise<void> | null>(null);
+  const initializationRef = useRef(new Map<string, Promise<void>>());
 
   function notify(message: string, undoRequest?: UndoRequest) {
     setNotice(message);
@@ -140,11 +140,15 @@ export function SeasonPlanning({
 
   useEffect(() => {
     let active = true;
-    initializationRef.current ??= service
-      .initializeStandardPeriodization(season.id)
-      .then(() => service.initializeStandardEquipment(season.id))
-      .then(() => service.refreshScheduleSessions(season.id));
-    void initializationRef.current
+    let initialization = initializationRef.current.get(season.id);
+    if (!initialization) {
+      initialization = service
+        .initializeStandardPeriodization(season.id)
+        .then(() => service.initializeStandardEquipment(season.id))
+        .then(() => service.refreshScheduleSessions(season.id));
+      initializationRef.current.set(season.id, initialization);
+    }
+    void initialization
       .then(() =>
         Promise.all([
           service.listTracks(season.id),

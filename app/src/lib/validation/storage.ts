@@ -6,7 +6,7 @@ import {
   type StorageCollection,
   type StorageSnapshot,
 } from "../storage/StorageAdapter";
-import { eventPriorities, seasonStatuses } from "./domain";
+import { eventPriorities, normalizeSeasonName, seasonStatuses } from "./domain";
 
 const id = z.string().min(1).max(200);
 const name = z.string().trim().min(1).max(200);
@@ -355,6 +355,22 @@ export function validateStorageSnapshot(
         });
       }
       parsedRows.set(entityId, parsed.data);
+    }
+  }
+
+  const seasonNames = new Map<string, string>();
+  for (const season of rowsByCollection.get("seasons")?.values() ?? []) {
+    const normalized = normalizeSeasonName(season.name as string);
+    if (seasonNames.has(normalized)) {
+      issues.push({
+        code: "DUPLICATE_SEASON_NAME",
+        message: "Eine Saison mit diesem Namen existiert bereits.",
+        collection: "seasons",
+        entityId: season.id as string,
+        path: "name",
+      });
+    } else {
+      seasonNames.set(normalized, season.id as string);
     }
   }
 

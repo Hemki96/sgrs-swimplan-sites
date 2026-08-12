@@ -54,8 +54,18 @@ export class InMemoryStorageAdapter implements StorageAdapter {
     const entities = [...(this.data.get(collection)?.values() ?? [])] as Array<
       T & { deletedAt?: string | null }
     >;
+    const snapshot = options.seasonId ? await this.exportAll() : undefined;
     return entities
       .filter((entity) => options.includeDeleted || !entity.deletedAt)
+      .filter(
+        (entity) =>
+          !options.seasonId ||
+          importSeasonScope(
+            snapshot!,
+            collection,
+            entity as unknown as Record<string, unknown>,
+          ) === options.seasonId,
+      )
       .map((entity) => this.copy(entity));
   }
 

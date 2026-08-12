@@ -5,6 +5,10 @@ import type { EventPriority, SeasonStatus, Weekday } from "../domain/types";
 const isoDate = /^\d{4}-\d{2}-\d{2}$/;
 const localTime = /^(?:[01]\d|2[0-3]):[0-5]\d$/;
 
+export function normalizeSeasonName(name: string): string {
+  return name.trim().normalize("NFKC").toLowerCase();
+}
+
 export const seasonStatuses = [
   "draft",
   "active",

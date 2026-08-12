@@ -9,3 +9,6 @@ CREATE TABLE IF NOT EXISTS storage_entities (
 );
 CREATE INDEX IF NOT EXISTS storage_entities_season_idx
   ON storage_entities (collection, season_id, deleted_at);
+CREATE UNIQUE INDEX IF NOT EXISTS storage_entities_season_name_idx
+  ON storage_entities (lower(trim(json_extract(data, '$.name'))))
+  WHERE collection = 'seasons';
