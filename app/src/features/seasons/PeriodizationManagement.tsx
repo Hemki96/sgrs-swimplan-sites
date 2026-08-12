@@ -406,9 +406,17 @@ function SegmentSection({
         <Field label="Fokus" error={errors.focusDefinitionId}>
           <select
             value={form.focusDefinitionId}
-            onChange={(e) =>
-              setForm({ ...form, focusDefinitionId: e.target.value })
-            }
+            onChange={(e) => {
+              const focusId = e.target.value;
+              const focus = focusDefinitions.find(
+                (item) => item.id === focusId,
+              );
+              setForm({
+                ...form,
+                focusDefinitionId: focusId,
+                dimensionId: focus?.dimensionId ?? form.dimensionId,
+              });
+            }}
           >
             <option value="">Bitte wählen</option>
             {selectableFocuses.map((item) => (

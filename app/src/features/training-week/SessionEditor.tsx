@@ -28,6 +28,7 @@ const emptySession: TrainingSessionInput = {
   keySession: false,
   athleteNote: "",
   equipment: "",
+  status: undefined,
 };
 
 export function SessionEditor({
@@ -63,12 +64,14 @@ export function SessionEditor({
           keySession: session.keySession,
           athleteNote: session.athleteNote ?? "",
           equipment: session.equipment ?? "",
+          status: session.status,
         }
       : {
           ...emptySession,
           trainingDayId: days.find((item) => item.date === date)?.id ?? "",
         },
   );
+  const [advancedOpen, setAdvancedOpen] = useState(false);
 
   async function save(event: FormEvent) {
     event.preventDefault();
@@ -103,33 +106,13 @@ export function SessionEditor({
           close={onClose}
         />
         <div className="editor-grid three">
-          <Field label="Titel" wide>
-            <input
-              value={form.title}
-              onChange={(event) =>
-                setForm({ ...form, title: event.target.value })
-              }
-            />
-          </Field>
-          <Field label="Uhrzeit">
-            <input
-              type="time"
-              value={form.startTime}
-              onChange={(event) =>
-                setForm({ ...form, startTime: event.target.value })
-              }
-            />
-          </Field>
-          <NumberField
-            label="Dauer (min)"
-            value={form.durationMinutes}
-            set={(value) => setForm({ ...form, durationMinutes: value })}
-          />
-          <NumberField
-            label="Umfang (m)"
-            value={form.volumeMeters}
-            set={(value) => setForm({ ...form, volumeMeters: value })}
-          />
+          {session?.generatedFromSchedule && (
+            <p className="field-info wide">
+              {session.scheduleDetached
+                ? "Dieser Standardtermin wurde individuell verändert und folgt nicht mehr dem Template."
+                : "Dieser Termin stammt aus einem wiederkehrenden Standardtraining."}
+            </p>
+          )}
           <Field label="Main Focus">
             <Focus
               value={form.mainFocusId}
@@ -137,26 +120,16 @@ export function SessionEditor({
               set={(value) => setForm({ ...form, mainFocusId: value })}
             />
           </Field>
-          <Field label="Technical Focus">
-            <Focus
-              value={form.technicalFocusId}
-              items={focusDefinitions}
-              set={(value) => setForm({ ...form, technicalFocusId: value })}
-            />
-          </Field>
+          <NumberField
+            label="Umfang (m)"
+            value={form.volumeMeters}
+            set={(value) => setForm({ ...form, volumeMeters: value })}
+          />
           <NumberField
             label="Expected RPE"
             value={form.expectedRpe}
             set={(value) => setForm({ ...form, expectedRpe: value })}
           />
-          <Field label="Equipment" wide>
-            <input
-              value={form.equipment}
-              onChange={(event) =>
-                setForm({ ...form, equipment: event.target.value })
-              }
-            />
-          </Field>
           <Field label="Hinweis" wide>
             <textarea
               value={form.athleteNote}
@@ -165,19 +138,85 @@ export function SessionEditor({
               }
             />
           </Field>
-          <label className="key-toggle">
-            <input
-              type="checkbox"
-              checked={form.keySession}
-              onChange={(event) =>
-                setForm({ ...form, keySession: event.target.checked })
-              }
-            />
-            <span>
-              <strong>Key Session</strong>
-              <small>Zentrale Einheit der Woche</small>
-            </span>
-          </label>
+          <details className="editor-advanced" open={advancedOpen}>
+            <summary
+              onClick={(e) => {
+                e.preventDefault();
+                setAdvancedOpen((open) => !open);
+              }}
+            >
+              Weitere Optionen
+            </summary>
+            <div className="editor-grid">
+              <Field label="Titel">
+                <input
+                  value={form.title}
+                  onChange={(event) =>
+                    setForm({ ...form, title: event.target.value })
+                  }
+                />
+              </Field>
+              <Field label="Uhrzeit">
+                <input
+                  type="time"
+                  value={form.startTime}
+                  onChange={(event) =>
+                    setForm({ ...form, startTime: event.target.value })
+                  }
+                />
+              </Field>
+              <NumberField
+                label="Dauer (min)"
+                value={form.durationMinutes}
+                set={(value) => setForm({ ...form, durationMinutes: value })}
+              />
+              <Field label="Technical Focus">
+                <Focus
+                  value={form.technicalFocusId}
+                  items={focusDefinitions}
+                  set={(value) => setForm({ ...form, technicalFocusId: value })}
+                />
+              </Field>
+              <Field label="Equipment">
+                <input
+                  value={form.equipment}
+                  onChange={(event) =>
+                    setForm({ ...form, equipment: event.target.value })
+                  }
+                />
+              </Field>
+              <Field label="Status">
+                <select
+                  value={form.status ?? "planned"}
+                  onChange={(event) =>
+                    setForm({
+                      ...form,
+                      status:
+                        event.target.value === "cancelled"
+                          ? "cancelled"
+                          : undefined,
+                    })
+                  }
+                >
+                  <option value="planned">Geplant</option>
+                  <option value="cancelled">Ausgefallen</option>
+                </select>
+              </Field>
+              <label className="key-toggle">
+                <input
+                  type="checkbox"
+                  checked={form.keySession}
+                  onChange={(event) =>
+                    setForm({ ...form, keySession: event.target.checked })
+                  }
+                />
+                <span>
+                  <strong>Key Session</strong>
+                  <small>Zentrale Einheit der Woche</small>
+                </span>
+              </label>
+            </div>
+          </details>
         </div>
         <div className="editor-footer">
           {session && (

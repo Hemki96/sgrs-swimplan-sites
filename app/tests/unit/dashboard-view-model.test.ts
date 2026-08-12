@@ -155,5 +155,6 @@ function fixture(): SeedDemoSeasonResult {
     ],
     equipmentItems: [],
     sessionEquipment: [],
+    trainingScheduleTemplates: [],
   };
 }

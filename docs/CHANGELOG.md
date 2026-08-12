@@ -1,5 +1,95 @@
 # Changelog
 
+## 2026-08-12 – Formular-Entlastung (ExecPlan 016)
+
+- Pflichtfelder entspannt: Saison (`description`, `mainGoal`), Wettkampf
+  (`endDate`), Kalenderrestriktion (`severity`), Zyklen (`goal`, `notes`),
+  Mikrozyklus (`targetRpe`), Codes (Dimension/Fokus/Equipment) und
+  Fokussegment (`dimensionId`) sind jetzt optional.
+- Smarte Defaults im `SeasonPlanningService`: Wettkampf-`endDate` übernimmt
+  bei leerer Eingabe das Startdatum; Codes werden aus dem Namen generiert;
+  die Fokussegment-Dimension wird aus dem Fokus abgeleitet; bei der
+  Periodisierung wird automatisch ein „Standard“-Eventtrack angelegt.
+- Neues Formular „Wochen automatisch erzeugen“: Ein Klick erzeugt alle
+  Kalenderwochen eines Mesozyklus als Mikrozyklen (`KW nn`, idempotent).
+- `Microcycle.targetRpe` ist optional geworden; die Matrix zeigt leere Werte
+  als „–“ und erlaubt deren Pflege.
+- SessionEditor mit progressive Disclosure: Titel, Uhrzeit, Dauer, Technical
+  Focus, Equipment, Status und Key Session sind unter „Weitere Optionen“
+  aufklappbar; sichtbar bleiben Main Focus, Umfang, RPE und Hinweis.
+- Wochenansicht mit Schnellbearbeitung: Main Focus, RPE und Umfang werden
+  ohne vollen Dialog inline gepflegt („Speichern“, „Abbrechen“,
+  „Mehr bearbeiten“).
+- 6 neue Unit-Tests in `tests/unit/season-planning-service.test.ts`;
+  Quality Gate (format, lint, typecheck, 166 Unit-Tests, Build) grün.
+
+## 2026-08-11 – Wiederkehrende Trainingstermine (ExecPlan 015)
+
+- Neue Entity `TrainingScheduleTemplate` für regelmäßige Trainingszeiten
+  (Wochentag, Start-/Endzeit, Ort, Gültigkeitszeitraum, aktiv) mit
+  versioniertem und soft-deletable CRUD über den `SeasonPlanningService`.
+- Automatische, idempotente Generierung von `TrainingSession`s für jede
+  passende Kalenderwoche innerhalb der Saison (inaktiv/deaktiviert/außerhalb
+  des Gültigkeitszeitraums → keine Erzeugung).
+- Template-Änderungen werden auf zukünftige, noch nicht individuell
+  veränderte Sessions übernommen; vergangene und getrennte Sessions bleiben
+  unverändert (`scheduleDetached`).
+- `TrainingSession` um `scheduleTemplateId`, `generatedFromSchedule`,
+  `scheduleDetached` und `status` (`planned` | `cancelled`) ergänzt; eine
+  Session wird bei abweichender Startzeit/Dauer automatisch vom Template
+  getrennt.
+- Neue Verwaltungsseite „Einstellungen → Trainingszeiten“ mit Tabelle,
+  Hinzufügen/Bearbeiten, Deaktivieren und Soft Delete.
+- Wochenansicht kennzeichnet automatische Sessions als „Standardtermin“,
+  zeigt ausgefallene Sessions und eine Restriktionswarnung bei
+  Kalenderrestriktionen.
+- Export/Import (JSON) inklusive `trainingScheduleTemplates`; Seed-Daten um
+  zwei Standardtermine ergänzt.
+- 11 neue Unit-Tests (`training-schedule.test.ts`) sowie angepasste
+  Fixture-Zählungen; Quality Gate (format, lint, typecheck, 160 Unit-Tests,
+  Build) grün.
+
+## 2026-08-11 – Massenpflege für Wettkämpfe (Bulk-Editor)
+
+- Neuer Tabellarischer Bulk-Editor für Wettkämpfe, erreichbar über den Button
+  „Massenpflege“ in der Wettkampfverwaltung (Planungsdaten-Tab).
+- UI-unabhängiges Bearbeiten-Modell unter `features/seasons/bulkEventsModel.ts`
+  mit Validierung, Speicherplanung, Paste-Parsing und Filterlogik.
+- Standardspalten Datum, Name, Priorität, Ort; optionale Spalten Enddatum,
+  Eventspur, Kategorie, Ziel, Notiz per Toggle einblendbar.
+- Excel-ähnliche Bedienung: Tab/Enter navigieren zwischen Zellen, in der
+  letzten Zelle der letzten Zeile wird automatisch eine neue Zeile erzeugt,
+  Copy & Paste verteilt tabulatorgetrennte Zeilen auf Tabellenzeilen.
+- Globale Defaults für neue Zeilen: Event Track (vorausgewählt) und Priorität.
+- Bestehende Wettkämpfe bearbeitbar mit Filtern nach Zeitraum, Eventspur
+  und Priorität; Duplizieren je Zeile; Soft Delete mit Bestätigung.
+- Validierung pro Zeile: Harte Fehler (Datum/Name fehlend, Enddatum vor
+  Startdatum, ungültige Werte) blockieren Speichern; Warnungen (Ort/Ziel
+  fehlend, mehrere Wettkämpfe am selben Tag, außerhalb Periodisierung)
+  blockieren nicht.
+- Gemeinsames Speichern mit Revision pro Mutation, Teilfehler werden
+  pro Zeile dokumentiert (erfolgreiche Zeilen bleiben gespeichert).
+- 16 Unit-Tests in `tests/unit/bulk-events-model.test.ts`; Typecheck, Lint,
+  160 Unit-Tests und Format grün.
+
+## 2026-08-11 – Automatische Zyklusvorschläge aus Wettkämpfen (ExecPlan 003 Erweiterung)
+
+- Pure Function `generateCycleSuggestions` in `src/lib/domain/cycleSuggestions.ts`, die aus Wettkämpfen Makro-, Meso- und Mikrozyklen als Vorschläge erzeugt
+- A-Wettkämpfe definieren Makrozyklus-Zielpunkte, B-Wettkämpfe definieren Mesozyklus-Grenzen
+- Mikrozyklen als 7-Tage-Einheiten innerhalb von Mesozyklen (angepasst an Zyklusgrenzen)
+- Hierarchie-Enforcement: Neuer Makro → neuer Meso → neuer Micro; neuer Meso → neuer Micro
+- Konflikterkennung: A-Wettkämpfe am selben Tag, nahe A-Wettkämpfe < 14 Tage, Meso < 7 Tage, Micro < 3 Tage
+- Bestehende Planungen werden niemals überschrieben – Warnhinweis stattdessen
+- Vorschau-UI mit Bearbeiten-Modus: Namen ändern, Datumsbereiche anpassen,
+  Zielwettkampf je Makro ändern, Micro-Namen editieren, Zyklen hinzufügen
+  (Makro/Meso/Micro) und „Neu berechnen“-Aktion
+- Micro-Naming nach Konvention „Micro 1.1.1“ bis „Micro 1.2.n“ (Sektion 16)
+- Hierarchie-Validierung (`validateSuggestionHierarchy`): Hinweise, wenn Meso/
+  Micro nach einer Grenzänderung außerhalb des übergeordneten Zyklus liegen –
+  es wird nichts automatisch verändert
+- Übernahme ausschließlich über den bestehenden `SeasonPlanningService` mit Revisionserstellung
+- 19 Unit-Tests und 5 Integrationstests; Typecheck, Lint und Build grün
+
 ## 2026-08-10 – Mobile Today & Session Card (ExecPlan 007)
 
 - Mobile Startansicht „Heute“ (M1): `TodayView` mit Meso-/Mikrozyklus-Summary,

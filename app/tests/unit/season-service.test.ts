@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 
 import { SeasonService } from "../../src/lib/domain/seasons";
 import type { SeasonInput } from "../../src/lib/validation/domain";
+import type { Season } from "../../src/lib/domain/types";
 import { InMemoryStorageAdapter } from "../../src/lib/storage/InMemoryStorageAdapter";
 
 const input: SeasonInput = {
@@ -79,5 +80,29 @@ describe("SeasonService", () => {
       service.create({ ...input, startDate: "2027-08-01" }),
     ).rejects.toThrow("Das Startdatum muss vor oder am Enddatum liegen.");
     await expect(storage.list("seasons")).resolves.toEqual([]);
+  });
+
+  it("refuses to purge a season that is not soft deleted", async () => {
+    const created = await service.create(input);
+    await expect(service.purge(created)).rejects.toThrow(
+      "Season must be soft deleted before it can be purged",
+    );
+    await expect(service.list()).resolves.toEqual([created]);
+  });
+
+  it("purges a soft deleted season and all its revisions", async () => {
+    const created = await service.create(input);
+    await service.delete(created);
+    const deleted = (
+      await storage.list<Season>("seasons", { includeDeleted: true })
+    ).find((season) => season.id === created.id);
+    expect(deleted?.deletedAt).toBeTruthy();
+    await service.purge(deleted!);
+
+    await expect(service.list()).resolves.toEqual([]);
+    await expect(
+      storage.list("seasons", { includeDeleted: true }),
+    ).resolves.toEqual([]);
+    await expect(storage.listRevisions(created.id)).resolves.toEqual([]);
   });
 });

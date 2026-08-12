@@ -11,7 +11,23 @@ const seasonNames = {
   persistence: `Persistente Saison ${runId}`,
   history: `Historie-Saison ${runId}`,
   matrix: `Matrix-Saison ${runId}`,
+  lean: `Lean-Saison ${runId}`,
+  week: `Wochen-Saison ${runId}`,
+  session: `Session-Saison ${runId}`,
 };
+
+async function createSeasonWithOnlyMandatory(
+  page: import("@playwright/test").Page,
+  name: string,
+) {
+  await page.goto("/");
+  await page.getByRole("button", { name: "Neue Saison" }).click();
+  await page.getByLabel("Name").fill(name);
+  await page.getByLabel("Startdatum").fill("2026-08-01");
+  await page.getByLabel("Enddatum").fill("2027-07-31");
+  await page.getByRole("button", { name: "Saison speichern" }).click();
+  await expect(page.getByRole("heading", { level: 1, name })).toBeVisible();
+}
 
 async function createSeason(
   page: import("@playwright/test").Page,
@@ -137,6 +153,55 @@ test("manages settings and confirms a previewed JSON import", async ({
   await page.setViewportSize({ width: 320, height: 900 });
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(
     320,
+  );
+});
+
+test("soft deletes a season and permanently purges it from settings", async ({
+  page,
+}) => {
+  await page.goto("/");
+
+  const name = `Purge-Saison ${runId}`;
+  await page.getByRole("button", { name: "Neue Saison" }).click();
+  await page.getByLabel("Name").fill(name);
+  await page.getByLabel("Startdatum").fill("2026-08-01");
+  await page.getByLabel("Enddatum").fill("2027-07-31");
+  await page.getByLabel("Beschreibung").fill("Gemeinsame Planung");
+  await page.getByLabel("Hauptziel").fill("Meisterschaft");
+  await page.getByRole("button", { name: "Saison speichern" }).click();
+  await expect(page.getByRole("heading", { level: 1, name })).toBeVisible();
+
+  const seasonCard = page.getByRole("article").filter({ hasText: name });
+  page.on("dialog", (dialog) => dialog.accept());
+  const deleteButton = seasonCard.getByRole("button", { name: "Löschen" });
+  if (!(await deleteButton.isVisible()))
+    await seasonCard.locator("summary").click();
+  await deleteButton.click();
+  await expect(
+    page.getByRole("article").filter({ hasText: name }),
+  ).not.toBeVisible();
+
+  await page.goto("/einstellungen");
+  await expect(
+    page.getByRole("heading", { level: 1, name: "Einstellungen" }),
+  ).toBeVisible();
+
+  const purgeCard = page.getByRole("article").filter({ hasText: name });
+  await purgeCard.getByRole("button", { name: "Endgültig löschen" }).click();
+
+  const dialog = page.getByRole("dialog", {
+    name: "Saison endgültig löschen",
+  });
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByText("Planungsobjekte")).toBeVisible();
+  await dialog.getByLabel("Saisonnamen zur Bestätigung eingeben").fill(name);
+  await dialog.getByRole("button", { name: "Endgültig löschen" }).click();
+
+  await expect(
+    page.getByText("Saison wurde endgültig gelöscht."),
+  ).toBeVisible();
+  await expect(page.getByRole("article").filter({ hasText: name })).toHaveCount(
+    0,
   );
 });
 
@@ -395,6 +460,7 @@ test("manages a microcycle inside its mesocycle", async ({ page }) => {
 
   const microcycles = page.getByRole("region", { name: "Mikrozyklen" });
   await microcycles
+    .locator("form.entity-form")
     .getByLabel("Mesozyklus")
     .selectOption({ label: "Aerobe Basis" });
   await microcycles.getByLabel("Name/KW").fill("KW 32");
@@ -684,4 +750,143 @@ test("shows history and restores a deleted entity", async ({ page }) => {
   ).toBeVisible();
   await page.getByRole("tab", { name: "Planungsdaten" }).click();
   await expect(macrocycles.getByText("Grundlagenaufbau")).toBeVisible();
+});
+
+test("creates a lean season and competition with only mandatory fields", async ({
+  page,
+}) => {
+  await createSeasonWithOnlyMandatory(page, seasonNames.lean);
+  await openPlanningData(page, seasonNames.lean);
+
+  const competition = page.getByRole("region", { name: "Wettkämpfe" });
+  await page.getByLabel("Name der Eventspur").fill("WK");
+  await page.getByRole("button", { name: "Eventspur anlegen" }).click();
+  await expect(page.getByText("Eventspur wurde angelegt.")).toBeVisible();
+
+  await competition.getByLabel("Eventspur").selectOption({ label: "WK" });
+  await competition.getByLabel("Name").fill("Sprint-Cup");
+  await competition.getByLabel("Startdatum").fill("2027-07-10");
+  await competition.getByRole("button", { name: "Wettkampf anlegen" }).click();
+  await expect(competition.getByText("Sprint-Cup")).toBeVisible();
+  await expect(
+    competition.getByText("10.07.2027 – 10.07.2027", { exact: false }),
+  ).toBeVisible();
+});
+
+test("generates weekly microcycles with one click", async ({ page }) => {
+  await page.goto("/");
+  await page.getByRole("button", { name: "Neue Saison" }).click();
+  await page.getByLabel("Name").fill(seasonNames.week);
+  await page.getByLabel("Startdatum").fill("2026-08-03");
+  await page.getByLabel("Enddatum").fill("2027-07-31");
+  await page.getByRole("button", { name: "Saison speichern" }).click();
+  await openPlanningData(page, seasonNames.week);
+
+  const macrocycles = page.getByRole("region", { name: "Makrozyklen" });
+  await macrocycles.getByLabel("Name").fill("Grundlagenaufbau");
+  await macrocycles.getByLabel("Startdatum").fill("2026-08-03");
+  await macrocycles.getByLabel("Enddatum").fill("2026-09-30");
+  await macrocycles
+    .getByRole("button", { name: "Makrozyklus anlegen" })
+    .click();
+  await expect(macrocycles.getByText("Grundlagenaufbau")).toBeVisible();
+
+  const mesocycles = page.getByRole("region", { name: "Mesozyklen" });
+  await mesocycles
+    .getByLabel("Makrozyklus")
+    .selectOption({ label: "Grundlagenaufbau" });
+  await mesocycles.getByLabel("Name").fill("Aerobe Basis");
+  await mesocycles.getByLabel("Startdatum").fill("2026-08-03");
+  await mesocycles.getByLabel("Enddatum").fill("2026-09-30");
+  await mesocycles.getByRole("button", { name: "Mesozyklus anlegen" }).click();
+  await expect(mesocycles.getByText("Aerobe Basis")).toBeVisible();
+
+  const microcycles = page.getByRole("region", { name: "Mikrozyklen" });
+  await microcycles
+    .getByLabel("Mesozyklus für Wochengenerierung")
+    .selectOption({ label: "Aerobe Basis" });
+  await microcycles
+    .getByRole("button", { name: "Wochen automatisch erzeugen" })
+    .click();
+  await expect(
+    page.getByText("Kalenderwochen wurden erzeugt.", { exact: false }),
+  ).toBeVisible();
+  await expect(microcycles.getByText("KW 32")).toBeVisible();
+  await expect(microcycles.getByText("KW 33")).toBeVisible();
+
+  await microcycles
+    .getByRole("button", { name: "Wochen automatisch erzeugen" })
+    .click();
+  await expect(
+    page.getByText("Alle Kalenderwochen sind bereits vorhanden."),
+  ).toBeVisible();
+  await expect(microcycles.getByText("KW 32")).toHaveCount(1);
+});
+
+test("edits a session with progressive disclosure and quick edit", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await page.getByRole("button", { name: "Neue Saison" }).click();
+  await page.getByLabel("Name").fill(seasonNames.session);
+  await page.getByLabel("Startdatum").fill("2026-08-03");
+  await page.getByLabel("Enddatum").fill("2027-07-31");
+  await page.getByRole("button", { name: "Saison speichern" }).click();
+  await openPlanningData(page, seasonNames.session);
+
+  const macrocycles = page.getByRole("region", { name: "Makrozyklen" });
+  await macrocycles.getByLabel("Name").fill("Grundlagenaufbau");
+  await macrocycles.getByLabel("Startdatum").fill("2026-08-03");
+  await macrocycles.getByLabel("Enddatum").fill("2026-09-30");
+  await macrocycles
+    .getByRole("button", { name: "Makrozyklus anlegen" })
+    .click();
+
+  const mesocycles = page.getByRole("region", { name: "Mesozyklen" });
+  await mesocycles
+    .getByLabel("Makrozyklus")
+    .selectOption({ label: "Grundlagenaufbau" });
+  await mesocycles.getByLabel("Name").fill("Aerobe Basis");
+  await mesocycles.getByLabel("Startdatum").fill("2026-08-03");
+  await mesocycles.getByLabel("Enddatum").fill("2026-09-30");
+  await mesocycles.getByRole("button", { name: "Mesozyklus anlegen" }).click();
+
+  const microcycles = page.getByRole("region", { name: "Mikrozyklen" });
+  await microcycles
+    .getByLabel("Mesozyklus für Wochengenerierung")
+    .selectOption({ label: "Aerobe Basis" });
+  await microcycles
+    .getByRole("button", { name: "Wochen automatisch erzeugen" })
+    .click();
+  await expect(microcycles.getByText("KW 32")).toBeVisible();
+  await expect(microcycles.getByText("KW 33")).toBeVisible();
+
+  await page.getByRole("tab", { name: "Woche" }).click();
+  await expect(
+    page.getByRole("heading", { name: "Trainer-Wochenansicht" }),
+  ).toBeVisible();
+  const sessionCard = page.locator(".session-card").first();
+  await page.locator(".add-session").first().click();
+  const editor = page.getByRole("dialog");
+  await expect(editor.getByLabel("Main Focus")).toBeVisible();
+  await expect(editor.getByLabel("Expected RPE")).toBeVisible();
+  await expect(editor.getByLabel("Titel")).toBeHidden();
+  await editor.getByText("Weitere Optionen").click();
+  await expect(editor.getByLabel("Titel")).toBeVisible();
+  await editor.getByLabel("Status").selectOption("cancelled");
+  await editor.getByRole("button", { name: "Session speichern" }).click();
+  await expect(sessionCard).toBeVisible();
+  await expect(sessionCard.getByText("Ausgefallen")).toBeVisible();
+
+  await sessionCard.click();
+  await expect(page.locator(".session-quick-edit")).toBeVisible();
+  await page
+    .locator(".session-quick-edit")
+    .getByRole("spinbutton", { name: "RPE" })
+    .fill("7");
+  await page
+    .locator(".session-quick-edit")
+    .getByRole("button", { name: "Speichern" })
+    .click();
+  await expect(sessionCard.getByText("7")).toBeVisible();
 });

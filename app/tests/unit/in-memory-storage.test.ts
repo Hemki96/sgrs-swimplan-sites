@@ -141,4 +141,67 @@ describe("InMemoryStorageAdapter", () => {
     ).resolves.toMatchObject({ name: "2026/27", version: 1 });
     await expect(reloaded.listRevisions(season.id)).resolves.toHaveLength(1);
   });
+
+  it("purges a season with all nested entities and its revisions", async () => {
+    const created = await storage.put("seasons", season, {
+      revision: { seasonId: season.id },
+    });
+    await storage.softDelete("seasons", created.id, { expectedVersion: 1 });
+
+    const otherSeason: Season = {
+      ...season,
+      id: "season-2",
+      name: "2027/28",
+      createdAt: "2026-08-09T10:00:00.000Z",
+      updatedAt: "2026-08-09T10:00:00.000Z",
+    };
+    await storage.put("seasons", otherSeason, {
+      revision: { seasonId: otherSeason.id },
+    });
+
+    const macrocycle = {
+      id: "macro-1",
+      seasonId: season.id,
+      name: "Base",
+      startDate: "2026-08-01",
+      endDate: "2027-01-31",
+      goal: "Grundlage",
+      notes: "",
+      version: 0,
+    };
+    await storage.put("macrocycles", macrocycle, {
+      revision: { seasonId: season.id, editorLabel: "public" },
+    });
+
+    const mesocycle: Mesocycle = {
+      id: "meso-1",
+      macrocycleId: macrocycle.id,
+      name: "Meso",
+      startDate: "2026-08-01",
+      endDate: "2026-08-31",
+      goal: "Ziel",
+      notes: "",
+      version: 0,
+    };
+    await storage.put("mesocycles", mesocycle, {
+      revision: { seasonId: season.id, editorLabel: "public" },
+    });
+
+    expect(await storage.listRevisions(season.id)).toHaveLength(4);
+
+    await storage.purgeSeason(season.id);
+
+    await expect(
+      storage.list<Season>("seasons", { includeDeleted: true }),
+    ).resolves.toHaveLength(1);
+    expect(
+      (await storage.list<Season>("seasons", { includeDeleted: true }))[0].id,
+    ).toBe(otherSeason.id);
+    await expect(storage.list("macrocycles")).resolves.toHaveLength(0);
+    await expect(storage.list("mesocycles")).resolves.toHaveLength(0);
+    await expect(storage.listRevisions(season.id)).resolves.toHaveLength(0);
+    await expect(storage.listRevisions(otherSeason.id)).resolves.toHaveLength(
+      1,
+    );
+  });
 });

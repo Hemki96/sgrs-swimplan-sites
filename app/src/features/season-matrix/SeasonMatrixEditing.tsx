@@ -612,9 +612,13 @@ function MatrixFields({
               min="1"
               max="10"
               step="1"
-              value={values.targetRpe}
+              value={values.targetRpe ?? ""}
               onChange={(e) =>
-                setForm({ ...values, targetRpe: Number(e.target.value) })
+                setForm({
+                  ...values,
+                  targetRpe:
+                    e.target.value === "" ? undefined : Number(e.target.value),
+                })
               }
             />
           </Field>
@@ -657,7 +661,7 @@ export function RpeInlineEditor({
   onNotice: (message: string) => void;
 }) {
   const [active, setActive] = useState(false);
-  const [value, setValue] = useState(String(microcycle.targetRpe));
+  const [value, setValue] = useState(microcycle.targetRpe?.toString() ?? "");
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -667,10 +671,10 @@ export function RpeInlineEditor({
   async function commit() {
     setActive(false);
     const parsed = microcycleInputSchema.shape.targetRpe.safeParse(
-      Number(value),
+      value === "" ? undefined : Number(value),
     );
     if (!parsed.success) {
-      setValue(String(microcycle.targetRpe));
+      setValue(microcycle.targetRpe?.toString() ?? "");
       return;
     }
     if (parsed.data === microcycle.targetRpe) return;
@@ -685,7 +689,7 @@ export function RpeInlineEditor({
       });
       onSaved("Mikrozyklus wurde aktualisiert.");
     } catch (error) {
-      setValue(String(microcycle.targetRpe));
+      setValue(microcycle.targetRpe?.toString() ?? "");
       onNotice(errorMessage(error));
     }
   }
@@ -707,7 +711,7 @@ export function RpeInlineEditor({
         onKeyDown={(e) => {
           if (e.key === "Enter") void commit();
           if (e.key === "Escape") {
-            setValue(String(microcycle.targetRpe));
+            setValue(microcycle.targetRpe?.toString() ?? "");
             setActive(false);
           }
         }}
@@ -721,11 +725,11 @@ export function RpeInlineEditor({
       aria-label="Target RPE ändern"
       onClick={(e) => {
         e.stopPropagation();
-        setValue(String(microcycle.targetRpe));
+        setValue(microcycle.targetRpe?.toString() ?? "");
         setActive(true);
       }}
     >
-      {microcycle.targetRpe}
+      {microcycle.targetRpe ?? "–"}
     </button>
   );
 }

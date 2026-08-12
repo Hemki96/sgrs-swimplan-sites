@@ -80,6 +80,12 @@ export class SitesStorageAdapter implements StorageAdapter {
     return this.listRevisions(GLOBAL_REVISION_SCOPE_ID);
   }
 
+  purgeSeason(seasonId: Id): Promise<void> {
+    return this.request(`/seasons/${encodeURIComponent(seasonId)}/purge`, {
+      method: "DELETE",
+    });
+  }
+
   async exportAll(): Promise<StorageSnapshot> {
     const document = await this.request<Record<string, unknown>>("/export");
     const snapshot: StorageSnapshot = {};

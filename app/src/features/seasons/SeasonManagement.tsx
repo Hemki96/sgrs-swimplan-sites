@@ -548,14 +548,14 @@ function SeasonEditor({
         </div>
         <form onSubmit={submit} noValidate>
           <div className="form-grid">
-            <Field label="Name" error={errors.name} wide>
+            <Field label="Name" error={errors.name} required wide>
               <input
                 ref={errors.name ? firstInvalid : undefined}
                 value={form.name}
                 onChange={(e) => setForm({ ...form, name: e.target.value })}
               />
             </Field>
-            <Field label="Startdatum" error={errors.startDate}>
+            <Field label="Startdatum" error={errors.startDate} required>
               <input
                 type="date"
                 value={form.startDate}
@@ -564,7 +564,7 @@ function SeasonEditor({
                 }
               />
             </Field>
-            <Field label="Enddatum" error={errors.endDate}>
+            <Field label="Enddatum" error={errors.endDate} required>
               <input
                 type="date"
                 value={form.endDate}
@@ -641,17 +641,22 @@ function trapTab(event: KeyboardEvent, container: HTMLElement) {
 function Field({
   label,
   error,
+  required,
   wide,
   children,
 }: {
   label: string;
   error?: string;
+  required?: boolean;
   wide?: boolean;
   children: React.ReactNode;
 }) {
   return (
     <label className={`field${wide ? " wide" : ""}`}>
-      <span>{label}</span>
+      <span>
+        {label}
+        {required && <em aria-hidden="true"> *</em>}
+      </span>
       {children}
       {error && (
         <span className="field-error" role="alert">

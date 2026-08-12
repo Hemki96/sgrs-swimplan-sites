@@ -51,6 +51,7 @@ const collections = new Set([
   "focus_segments",
   "training_days",
   "training_sessions",
+  "training_schedule_templates",
   "equipment_items",
   "session_equipment",
   "revisions",
@@ -273,6 +274,16 @@ async function softDeleteEntity(
   return new Response(null, { status: 204 });
 }
 
+async function purgeSeasonEntity(db: D1Database, seasonId: string) {
+  const season = await currentEntity(db, "seasons", seasonId);
+  if (!season) return json({ error: "Season not found" }, 404);
+  await db
+    .prepare("DELETE FROM storage_entities WHERE season_id = ?")
+    .bind(seasonId)
+    .run();
+  return new Response(null, { status: 204 });
+}
+
 function importSnapshotError(
   value: unknown,
 ): { snapshot: Record<string, StoredEntity[]> } | Response {
@@ -445,6 +456,11 @@ export async function storageRequest(
     if (entity.id !== decodeURIComponent(parts[1]))
       return json({ error: "ID mismatch" }, 400);
     return putEntity(env.DB, collection, entity, options);
+  }
+  if (request.method === "DELETE" && parts[2] === "purge") {
+    if (collection !== "seasons" || !parts[1])
+      return json({ error: "Invalid request" }, 400);
+    return purgeSeasonEntity(env.DB, decodeURIComponent(parts[1]));
   }
   if (request.method === "DELETE") {
     const { options } = (await request.json()) as {

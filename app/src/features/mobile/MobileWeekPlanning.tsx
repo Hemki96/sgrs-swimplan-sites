@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 
 import type {
+  CalendarConstraint,
   Event,
   FocusDefinition,
   Mesocycle,
@@ -18,6 +19,7 @@ export function MobileWeekPlanning({
   microcycles,
   mesocycles,
   events,
+  constraints,
   focusDefinitions,
   days,
   sessions,
@@ -28,6 +30,7 @@ export function MobileWeekPlanning({
   microcycles: Microcycle[];
   mesocycles: Mesocycle[];
   events: Event[];
+  constraints: CalendarConstraint[];
   focusDefinitions: FocusDefinition[];
   days: TrainingDay[];
   sessions: TrainingSession[];
@@ -40,6 +43,7 @@ export function MobileWeekPlanning({
     season,
     microcycles,
     mesocycles,
+    constraints,
     focusDefinitions,
     days,
     sessions,

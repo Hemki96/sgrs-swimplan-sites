@@ -5,6 +5,8 @@ import {
   configurationGroupLabels,
 } from "../../lib/domain/configuration";
 import { seedDemoSeason } from "../../lib/domain/seedDemoSeason";
+import { SeasonService } from "../../lib/domain/seasons";
+import type { Season } from "../../lib/domain/types";
 import {
   configurationGroups,
   type ConfigurationGroup,
@@ -22,7 +24,12 @@ import {
   parseImport,
   type ImportPreview,
 } from "../../lib/import/jsonImport";
+import {
+  seasonScopeSummary,
+  type SeasonScopeSummary,
+} from "../../lib/storage/purgeScope";
 import { VersionConflictError } from "../../lib/storage/InMemoryStorageAdapter";
+import { TrainingScheduleSettings } from "./TrainingScheduleSettings";
 import type { StorageAdapter } from "../../lib/storage/StorageAdapter";
 
 const emptyValue = (group: ConfigurationGroup): ConfigurationValue => ({
@@ -44,6 +51,7 @@ export function SettingsPage({
   close: () => void;
 }) {
   const service = useMemo(() => new ConfigurationService(storage), [storage]);
+  const seasonService = useMemo(() => new SeasonService(storage), [storage]);
   const [values, setValues] = useState<ConfigurationValue[]>([]);
   const [group, setGroup] = useState<ConfigurationGroup>("season_status");
   const [editing, setEditing] = useState<ConfigurationValue | null>(null);
@@ -55,6 +63,12 @@ export function SettingsPage({
   const [selectedSheet, setSelectedSheet] = useState("");
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
+  const [deletedSeasons, setDeletedSeasons] = useState<Season[]>([]);
+  const [purgeTarget, setPurgeTarget] = useState<Season | null>(null);
+  const [purgeName, setPurgeName] = useState("");
+  const [purgeSummary, setPurgeSummary] = useState<SeasonScopeSummary | null>(
+    null,
+  );
 
   const reload = async () => setValues(await service.ensureDefaults());
   useEffect(() => {
@@ -62,10 +76,23 @@ export function SettingsPage({
     void service.ensureDefaults().then((next) => {
       if (active) setValues(next);
     });
+    void storage
+      .list<Season>("seasons", { includeDeleted: true })
+      .then((all) => {
+        if (!active) return;
+        setDeletedSeasons(
+          all
+            .filter((season) => season.deletedAt)
+            .sort((left, right) =>
+              (left.deletedAt ?? "").localeCompare(right.deletedAt ?? ""),
+            ),
+        );
+      })
+      .catch(() => undefined);
     return () => {
       active = false;
     };
-  }, [service]);
+  }, [service, storage]);
   const grouped = values.filter(
     (value) => value.group === group && !value.deletedAt,
   );
@@ -210,6 +237,44 @@ export function SettingsPage({
       setMessage("Eine zusätzliche Demo-Saison wurde angelegt.");
     } catch {
       setMessage("Demo-Saison konnte nicht angelegt werden.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function openPurge(season: Season) {
+    setBusy(true);
+    try {
+      const snapshot = await storage.exportAll();
+      setPurgeSummary(seasonScopeSummary(snapshot, season.id));
+      setPurgeName("");
+      setPurgeTarget(season);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function confirmPurge() {
+    if (!purgeTarget || purgeName.trim() !== purgeTarget.name) return;
+    setBusy(true);
+    try {
+      await seasonService.purge(purgeTarget);
+      setPurgeTarget(null);
+      setPurgeName("");
+      setPurgeSummary(null);
+      const all = await storage.list<Season>("seasons", {
+        includeDeleted: true,
+      });
+      setDeletedSeasons(
+        all
+          .filter((season) => season.deletedAt)
+          .sort((left, right) =>
+            (left.deletedAt ?? "").localeCompare(right.deletedAt ?? ""),
+          ),
+      );
+      setMessage("Saison wurde endgültig gelöscht.");
+    } catch {
+      setMessage("Endgültiges Löschen fehlgeschlagen.");
     } finally {
       setBusy(false);
     }
@@ -456,6 +521,44 @@ export function SettingsPage({
         )}
       </section>
 
+      <TrainingScheduleSettings storage={storage} onMessage={setMessage} />
+
+      <section className="settings-panel" aria-labelledby="purge-title">
+        <p className="eyebrow">Datenbereinigung</p>
+        <h2 id="purge-title">Saisons endgültig löschen</h2>
+        <p>
+          Zeigt Saisons, die in der Saisonverwaltung bereits gelöscht wurden.
+          Das endgültige Löschen entfernt alle Planungsobjekte und die Historie
+          unwiderruflich. Vorher am besten den JSON-Gesamtexport laden.
+        </p>
+        <div className="configuration-list">
+          {deletedSeasons.map((season) => (
+            <article key={season.id} className="configuration-row">
+              <div>
+                <strong>{season.name}</strong>
+                <small>
+                  {formatDate(season.startDate)} – {formatDate(season.endDate)}{" "}
+                  · gelöscht am {formatDateTime(season.deletedAt ?? "")}
+                </small>
+              </div>
+              <span />
+              <div className="row-actions">
+                <button
+                  className="button danger"
+                  disabled={busy}
+                  onClick={() => void openPurge(season)}
+                >
+                  Endgültig löschen
+                </button>
+              </div>
+            </article>
+          ))}
+          {!deletedSeasons.length && (
+            <p className="empty-state">Keine gelöschten Saisons vorhanden.</p>
+          )}
+        </div>
+      </section>
+
       <section className="settings-panel" aria-labelledby="demo-title">
         <p className="eyebrow">Beispieldaten</p>
         <h2 id="demo-title">Demo-Daten</h2>
@@ -572,6 +675,76 @@ export function SettingsPage({
           </section>
         </div>
       )}
+
+      {purgeTarget && (
+        <div className="modal-backdrop">
+          <section
+            className="editor-sheet compact"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="purge-dialog-title"
+          >
+            <div className="editor-heading">
+              <h2 id="purge-dialog-title">Saison endgültig löschen</h2>
+              <button
+                className="icon-button"
+                aria-label="Dialog schließen"
+                onClick={() => setPurgeTarget(null)}
+              >
+                ×
+              </button>
+            </div>
+            <div className="purge-preview">
+              <strong>{purgeTarget.name}</strong>
+              <span>
+                {purgeSummary?.entityCount ?? 0} Planungsobjekte ·{" "}
+                {purgeSummary?.revisionCount ?? 0} Revisionen
+              </span>
+              <span className="danger-text">
+                Dies entfernt alle Daten dieser Saison unwiderruflich. Die
+                Historie kann danach nicht wiederhergestellt werden.
+              </span>
+            </div>
+            <p className="purge-backup-hint">
+              Zur Sicherung bitte vorher den JSON-Gesamtexport laden.
+            </p>
+            <label className="field">
+              <span>Saisonnamen zur Bestätigung eingeben</span>
+              <input
+                value={purgeName}
+                onChange={(event) => setPurgeName(event.target.value)}
+                placeholder={purgeTarget.name}
+              />
+            </label>
+            <div className="editor-footer">
+              <button
+                type="button"
+                className="button quiet"
+                onClick={() => setPurgeTarget(null)}
+              >
+                Abbrechen
+              </button>
+              <button
+                className="button danger"
+                disabled={busy || purgeName.trim() !== purgeTarget.name}
+                onClick={() => void confirmPurge()}
+              >
+                Endgültig löschen
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
     </main>
   );
+}
+
+function formatDate(value: string) {
+  const [year, month, day] = value.split("-");
+  return `${day}.${month}.${year}`;
+}
+
+function formatDateTime(value: string) {
+  const [date, time] = value.split("T");
+  return `${formatDate(date)}${time ? ` ${time.slice(0, 5)}` : ""}`;
 }

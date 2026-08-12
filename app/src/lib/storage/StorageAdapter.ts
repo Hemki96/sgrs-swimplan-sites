@@ -15,6 +15,7 @@ export const STORAGE_COLLECTIONS = [
   "focus_segments",
   "training_days",
   "training_sessions",
+  "training_schedule_templates",
   "equipment_items",
   "session_equipment",
   "revisions",
@@ -37,6 +38,7 @@ export const EXPORT_COLLECTION_KEYS: Record<StorageCollection, string> = {
   focus_segments: "focusSegments",
   training_days: "trainingDays",
   training_sessions: "trainingSessions",
+  training_schedule_templates: "trainingScheduleTemplates",
   equipment_items: "equipmentItems",
   session_equipment: "sessionEquipment",
   revisions: "revisions",
@@ -86,6 +88,7 @@ export interface StorageAdapter {
   ): Promise<void>;
   listRevisions(seasonId: Id): Promise<Revision[]>;
   listGlobalRevisions(): Promise<Revision[]>;
+  purgeSeason(seasonId: Id): Promise<void>;
   exportAll(): Promise<StorageSnapshot>;
   hydrate(snapshot: StorageSnapshot): Promise<void>;
   applyImport(snapshot: StorageSnapshot): Promise<void>;

@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from "react";
 import type {
+  CalendarConstraint,
   FocusDefinition,
   Mesocycle,
   Microcycle,
@@ -26,6 +27,7 @@ export function TrainerWeekView({
   season,
   microcycles,
   mesocycles,
+  constraints,
   focusDefinitions,
   days,
   sessions,
@@ -35,6 +37,7 @@ export function TrainerWeekView({
   season: Season;
   microcycles: Microcycle[];
   mesocycles: Mesocycle[];
+  constraints: CalendarConstraint[];
   focusDefinitions: FocusDefinition[];
   days: TrainingDay[];
   sessions: TrainingSession[];
@@ -48,6 +51,10 @@ export function TrainerWeekView({
     date: string;
     session?: TrainingSession;
   } | null>(null);
+  const [quickEdit, setQuickEdit] = useState<TrainingSession | null>(null);
+  const [quickFocus, setQuickFocus] = useState("");
+  const [quickVolume, setQuickVolume] = useState("");
+  const [quickRpe, setQuickRpe] = useState("");
   const [weekForm, setWeekForm] = useState<Microcycle | null>(null);
   const [mobileMode, setMobileMode] = useState<"day" | "week">("week");
   const [selectedDayIndex, setSelectedDayIndex] = useState<number | null>(null);
@@ -88,6 +95,36 @@ export function TrainerWeekView({
   function openDay(date: string) {
     setDayDate(date);
     setDayContext(days.find((day) => day.date === date)?.dayContext ?? "");
+  }
+  function startQuickEdit(session: TrainingSession) {
+    setQuickEdit(session);
+    setQuickFocus(session.mainFocusId ?? "");
+    setQuickVolume(session.volumeMeters?.toString() ?? "");
+    setQuickRpe(session.expectedRpe?.toString() ?? "");
+  }
+  async function saveQuickEdit(event: FormEvent) {
+    event.preventDefault();
+    if (!quickEdit) return;
+    await service.saveTrainingSession(
+      season.id,
+      {
+        trainingDayId: quickEdit.trainingDayId,
+        title: quickEdit.title ?? "",
+        startTime: quickEdit.startTime ?? "",
+        durationMinutes: quickEdit.durationMinutes,
+        volumeMeters: opt(quickVolume),
+        expectedRpe: opt(quickRpe),
+        mainFocusId: quickFocus,
+        technicalFocusId: quickEdit.technicalFocusId ?? "",
+        keySession: quickEdit.keySession,
+        athleteNote: quickEdit.athleteNote ?? "",
+        equipment: quickEdit.equipment ?? "",
+        status: quickEdit.status,
+      },
+      quickEdit,
+    );
+    setQuickEdit(null);
+    await onChange();
   }
   async function saveWeek(event: FormEvent) {
     event.preventDefault();
@@ -213,7 +250,7 @@ export function TrainerWeekView({
         <span>
           <small>Target RPE</small>
           <strong>
-            {selected.targetRpe}
+            {selected.targetRpe ?? "–"}
             <i>/10</i>
           </strong>
         </span>
@@ -228,7 +265,7 @@ export function TrainerWeekView({
         <span className="edit-cue">Bearbeiten ↗</span>
       </button>
       <div className="week-load">
-        <span style={{ width: `${selected.targetRpe * 10}%` }} />
+        <span style={{ width: `${(selected.targetRpe ?? 0) * 10}%` }} />
       </div>
       <div
         className={`day-grid mobile-${mobileMode}`}
@@ -239,6 +276,14 @@ export function TrainerWeekView({
           const entries = sessions.filter(
             (item) => item.trainingDayId === day?.id,
           );
+          const constraintWarning = (date: string): string | null => {
+            const match = constraints.find(
+              (item) => item.startDate <= date && item.endDate >= date,
+            );
+            if (!match) return null;
+            return "Dieser Trainingstermin liegt innerhalb einer Kalenderrestriktion.";
+          };
+
           return (
             <article className={`day-lane day-${index}`} key={date}>
               <header className="day-heading">
@@ -257,14 +302,86 @@ export function TrainerWeekView({
                 <span>{day?.dayContext || "Kontext hinzufügen"}</span>
               </button>
               <div className="day-sessions">
-                {entries.map((session) => (
-                  <SessionCard
-                    key={session.id}
-                    session={session}
-                    focusDefinitions={focusDefinitions}
-                    onClick={() => setEditor({ date, session })}
-                  />
-                ))}
+                {entries.map((session) =>
+                  quickEdit?.id === session.id ? (
+                    <form
+                      key={session.id}
+                      className="session-quick-edit"
+                      onSubmit={saveQuickEdit}
+                    >
+                      <label className="field">
+                        <span>Main Focus</span>
+                        <select
+                          value={quickFocus}
+                          onChange={(e) => setQuickFocus(e.target.value)}
+                        >
+                          <option value="">Kein Fokus</option>
+                          {focusDefinitions.map((item) => (
+                            <option key={item.id} value={item.id}>
+                              {item.name}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      <label className="field">
+                        <span>RPE</span>
+                        <input
+                          type="number"
+                          min="1"
+                          max="10"
+                          value={quickRpe}
+                          onChange={(e) => setQuickRpe(e.target.value)}
+                        />
+                      </label>
+                      <label className="field">
+                        <span>Umfang (m)</span>
+                        <input
+                          type="number"
+                          min="0"
+                          value={quickVolume}
+                          onChange={(e) => setQuickVolume(e.target.value)}
+                        />
+                      </label>
+                      <div className="quick-edit-actions">
+                        <button className="button primary" type="submit">
+                          Speichern
+                        </button>
+                        <button
+                          className="button quiet"
+                          type="button"
+                          onClick={() => setQuickEdit(null)}
+                        >
+                          Abbrechen
+                        </button>
+                        <button
+                          className="button quiet"
+                          type="button"
+                          onClick={() => {
+                            setQuickEdit(null);
+                            setEditor({
+                              date: dates[index],
+                              session,
+                            });
+                          }}
+                        >
+                          Mehr bearbeiten
+                        </button>
+                      </div>
+                    </form>
+                  ) : (
+                    <SessionCard
+                      key={session.id}
+                      session={session}
+                      focusDefinitions={focusDefinitions}
+                      warning={
+                        session.generatedFromSchedule
+                          ? constraintWarning(dates[index])
+                          : null
+                      }
+                      onClick={() => startQuickEdit(session)}
+                    />
+                  ),
+                )}
               </div>
               <button
                 className="add-session"
@@ -326,11 +443,11 @@ export function TrainerWeekView({
                   type="number"
                   min="1"
                   max="10"
-                  value={weekForm.targetRpe}
+                  value={weekForm.targetRpe ?? ""}
                   onChange={(event) =>
                     setWeekForm({
                       ...weekForm,
-                      targetRpe: Number(event.target.value),
+                      targetRpe: opt(event.target.value),
                     })
                   }
                 />

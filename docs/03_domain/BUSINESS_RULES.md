@@ -24,3 +24,13 @@ BR-021 Eine Fokusdefinition gehört zu genau einer Dimension derselben Saison.
 BR-022 Fokussegmente verschiedener Dimensionen dürfen zeitlich parallel laufen.
 BR-023 Dimensionen und Fokusdefinitionen mit aktiven Referenzen werden nicht gelöscht.
 BR-024 Trainingstage liegen innerhalb ihrer Saison.
+BR-025 Ein wiederkehrendes Training (TrainingScheduleTemplate) erzeugt für jede
+passende Kalenderwoche höchstens eine automatische Session (idempotent).
+BR-026 Eine individuell veränderte Session (scheduleDetached = true) wird durch
+spätere Template-Änderungen nicht überschrieben.
+BR-027 Nur zukunftige, nicht getrennte Sessions übernehmen geänderte
+Template-Zeiten; vergangene Sessions bleiben unverändert.
+BR-028 Ein deaktiviertes Template erzeugt keine neuen Sessions; bestehende
+bleiben erhalten.
+BR-029 Sessions innerhalb einer Kalenderrestriktion bleiben bestehen und zeigen
+eine Warnung.

@@ -45,7 +45,9 @@ import {
   type MicrocycleSegmentInput,
 } from "../../lib/validation/domain";
 import { PeriodizationManagement } from "./PeriodizationManagement";
+import { CycleSuggestionPanel } from "./CycleSuggestionPanel";
 import { TrainingDayManagement } from "./TrainingDayManagement";
+import { BulkEventsEditor } from "./BulkEventsEditor";
 import { HistoryView } from "./HistoryView";
 import { HistoryService, type UndoRequest } from "../../lib/domain/history";
 import { SeasonMatrix } from "../season-matrix/SeasonMatrix";
@@ -95,7 +97,7 @@ const blankMicrocycle: MicrocycleInput = {
   startDate: "",
   endDate: "",
   goal: "",
-  targetRpe: 5,
+  targetRpe: undefined,
   targetVolumeMeters: undefined,
 };
 const blankMicrocycleSegment: MicrocycleSegmentInput = {
@@ -139,6 +141,7 @@ export function SeasonPlanning({
   const [trainingSessions, setTrainingSessions] = useState<TrainingSession[]>(
     [],
   );
+  const [bulkOpen, setBulkOpen] = useState(false);
   const [notice, setNotice] = useState("");
   const [undo, setUndo] = useState<UndoRequest | null>(null);
   const initializationRef = useRef<Promise<void> | null>(null);
@@ -161,6 +164,7 @@ export function SeasonPlanning({
   }
 
   async function reload() {
+    await service.refreshScheduleSessions(season.id);
     const [
       nextTracks,
       nextEvents,
@@ -206,7 +210,8 @@ export function SeasonPlanning({
     let active = true;
     initializationRef.current ??= service
       .initializeStandardPeriodization(season.id)
-      .then(() => service.initializeStandardEquipment(season.id));
+      .then(() => service.initializeStandardEquipment(season.id))
+      .then(() => service.refreshScheduleSessions(season.id));
     void initializationRef.current
       .then(() =>
         Promise.all([
@@ -299,6 +304,7 @@ export function SeasonPlanning({
           microcycles={microcycles}
           mesocycles={mesocycles}
           events={events}
+          constraints={constraints}
           focusDefinitions={focusDefinitions}
           days={trainingDays}
           sessions={trainingSessions}
@@ -349,6 +355,7 @@ export function SeasonPlanning({
             seasonId={season.id}
             onChange={reload}
             onNotice={notify}
+            onOpenBulk={() => setBulkOpen(true)}
           />
           <ConstraintSection
             constraints={constraints}
@@ -389,6 +396,16 @@ export function SeasonPlanning({
             onChange={reload}
             onNotice={notify}
           />
+          <CycleSuggestionPanel
+            season={season}
+            events={events}
+            macrocycles={macrocycles}
+            mesocycles={mesocycles}
+            microcycles={microcycles}
+            service={service}
+            onChange={reload}
+            onNotice={notify}
+          />
           <PeriodizationManagement
             seasonId={season.id}
             dimensions={dimensions}
@@ -409,6 +426,18 @@ export function SeasonPlanning({
       )}
       {view === "history" && (
         <HistoryView seasonId={season.id} storage={storage} onChange={reload} />
+      )}
+      {bulkOpen && (
+        <BulkEventsEditor
+          seasonId={season.id}
+          tracks={tracks}
+          events={events}
+          macrocycles={macrocycles}
+          service={service}
+          onClose={() => setBulkOpen(false)}
+          onSaved={reload}
+          onNotice={notify}
+        />
       )}
     </section>
   );
@@ -595,6 +624,7 @@ function MicrocycleSection({
   const [form, setForm] = useState<MicrocycleInput>(blankMicrocycle);
   const [editing, setEditing] = useState<Microcycle | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [generateMesoId, setGenerateMesoId] = useState("");
 
   async function submit(event: FormEvent) {
     event.preventDefault();
@@ -644,8 +674,47 @@ function MicrocycleSection({
     }
   }
 
+  async function generateWeeks(event: FormEvent) {
+    event.preventDefault();
+    const mesocycle =
+      mesocycles.find((item) => item.id === generateMesoId) ?? mesocycles[0];
+    if (!mesocycle) return;
+    try {
+      const count = await service.generateWeeklyMicrocycles(mesocycle.id);
+      onNotice(
+        count > 0
+          ? `${count} Kalenderwochen wurden erzeugt.`
+          : "Alle Kalenderwochen sind bereits vorhanden.",
+      );
+      await onChange();
+    } catch (error) {
+      onNotice(errorMessage(error));
+    }
+  }
+
   return (
     <PlanningSection title="Mikrozyklen" count={microcycles.length}>
+      <form
+        className="compact-form week-generation-form"
+        onSubmit={generateWeeks}
+      >
+        <label className="field">
+          <span>Mesozyklus für Wochengenerierung</span>
+          <select
+            value={generateMesoId || mesocycles[0]?.id || ""}
+            onChange={(e) => setGenerateMesoId(e.target.value)}
+          >
+            {mesocycles.map((mesocycle) => (
+              <option key={mesocycle.id} value={mesocycle.id}>
+                {mesocycle.name}
+              </option>
+            ))}
+          </select>
+        </label>
+        <button className="button primary" type="submit">
+          Wochen automatisch erzeugen
+        </button>
+      </form>
       {mesocycles.length === 0 ? (
         <p className="hint">Lege zuerst einen Mesozyklus an.</p>
       ) : (
@@ -691,9 +760,13 @@ function MicrocycleSection({
               min="1"
               max="10"
               step="1"
-              value={form.targetRpe}
+              value={form.targetRpe ?? ""}
               onChange={(e) =>
-                setForm({ ...form, targetRpe: Number(e.target.value) })
+                setForm({
+                  ...form,
+                  targetRpe:
+                    e.target.value === "" ? undefined : Number(e.target.value),
+                })
               }
             />
           </Field>
@@ -751,7 +824,9 @@ function MicrocycleSection({
                 {formatDate(microcycle.endDate)}
               </span>
               <span>
-                Target RPE {microcycle.targetRpe}
+                {microcycle.targetRpe === undefined
+                  ? "Kein Target RPE"
+                  : `Target RPE ${microcycle.targetRpe}`}
                 {microcycle.targetVolumeMeters === undefined
                   ? ""
                   : ` · ${microcycle.targetVolumeMeters} m`}
@@ -1219,7 +1294,12 @@ function EventSection({
   seasonId,
   onChange,
   onNotice,
-}: SectionProps & { events: Event[]; tracks: EventTrack[] }) {
+  onOpenBulk,
+}: SectionProps & {
+  events: Event[];
+  tracks: EventTrack[];
+  onOpenBulk: () => void;
+}) {
   const [form, setForm] = useState<EventInput>(blankEvent);
   const [editing, setEditing] = useState<Event | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -1270,6 +1350,11 @@ function EventSection({
 
   return (
     <PlanningSection title="Wettkämpfe" count={events.length}>
+      <div className="bulk-open-row">
+        <button type="button" className="button quiet" onClick={onOpenBulk}>
+          Massenpflege
+        </button>
+      </div>
       {tracks.length === 0 ? (
         <p className="hint">Lege zuerst eine Eventspur an.</p>
       ) : (

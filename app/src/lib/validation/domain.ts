@@ -1,8 +1,9 @@
 import { z } from "zod";
 
-import type { EventPriority, SeasonStatus } from "../domain/types";
+import type { EventPriority, SeasonStatus, Weekday } from "../domain/types";
 
 const isoDate = /^\d{4}-\d{2}-\d{2}$/;
+const localTime = /^(?:[01]\d|2[0-3]):[0-5]\d$/;
 
 export const seasonStatuses = [
   "draft",
@@ -16,8 +17,8 @@ export const seasonInputSchema = z
     name: z.string().trim().min(1, "Name ist erforderlich."),
     startDate: z.string().regex(isoDate, "Startdatum ist erforderlich."),
     endDate: z.string().regex(isoDate, "Enddatum ist erforderlich."),
-    description: z.string().trim().min(1, "Beschreibung ist erforderlich."),
-    mainGoal: z.string().trim().min(1, "Hauptziel ist erforderlich."),
+    description: z.string().trim(),
+    mainGoal: z.string().trim(),
     status: z.enum(seasonStatuses),
   })
   .refine(({ startDate, endDate }) => startDate <= endDate, {
@@ -56,8 +57,9 @@ export const eventInputSchema = datedEntitySchema
     location: z.string().trim(),
     goal: z.string().trim(),
     notes: z.string().trim(),
+    endDate: z.string().regex(isoDate).or(z.literal("")),
   })
-  .refine(({ startDate, endDate }) => startDate <= endDate, {
+  .refine(({ startDate, endDate }) => !endDate || startDate <= endDate, {
     message: "Das Startdatum muss vor oder am Enddatum liegen.",
     path: ["endDate"],
   });
@@ -68,7 +70,7 @@ export const calendarConstraintInputSchema = datedEntitySchema
   .extend({
     type: z.string().trim().min(1, "Typ ist erforderlich."),
     notes: z.string().trim(),
-    severity: z.string().trim().min(1, "Auswirkung ist erforderlich."),
+    severity: z.string().trim(),
   })
   .refine(({ startDate, endDate }) => startDate <= endDate, {
     message: "Das Startdatum muss vor oder am Enddatum liegen.",
@@ -81,9 +83,9 @@ export type CalendarConstraintInput = z.infer<
 
 export const macrocycleInputSchema = datedEntitySchema
   .extend({
-    goal: z.string().trim().min(1, "Ziel ist erforderlich."),
+    goal: z.string().trim(),
     targetEventId: z.string().trim().optional(),
-    notes: z.string().trim().min(1, "Notiz ist erforderlich."),
+    notes: z.string().trim(),
   })
   .refine(({ startDate, endDate }) => startDate <= endDate, {
     message: "Das Startdatum muss vor oder am Enddatum liegen.",
@@ -95,8 +97,8 @@ export type MacrocycleInput = z.infer<typeof macrocycleInputSchema>;
 export const mesocycleInputSchema = datedEntitySchema
   .extend({
     macrocycleId: z.string().trim().min(1, "Makrozyklus ist erforderlich."),
-    goal: z.string().trim().min(1, "Ziel ist erforderlich."),
-    notes: z.string().trim().min(1, "Notiz ist erforderlich."),
+    goal: z.string().trim(),
+    notes: z.string().trim(),
   })
   .refine(({ startDate, endDate }) => startDate <= endDate, {
     message: "Das Startdatum muss vor oder am Enddatum liegen.",
@@ -108,12 +110,13 @@ export type MesocycleInput = z.infer<typeof mesocycleInputSchema>;
 export const microcycleInputSchema = datedEntitySchema
   .extend({
     mesocycleId: z.string().trim().min(1, "Mesozyklus ist erforderlich."),
-    goal: z.string().trim().min(1, "Ziel ist erforderlich."),
+    goal: z.string().trim(),
     targetRpe: z
       .number()
       .int("Target RPE muss eine ganze Zahl sein.")
       .min(1, "Target RPE muss zwischen 1 und 10 liegen.")
-      .max(10, "Target RPE muss zwischen 1 und 10 liegen."),
+      .max(10, "Target RPE muss zwischen 1 und 10 liegen.")
+      .optional(),
     targetVolumeMeters: z
       .number()
       .min(0, "Zielumfang muss mindestens 0 Meter sein.")
@@ -144,18 +147,18 @@ export type MicrocycleSegmentInput = z.infer<
   typeof microcycleSegmentInputSchema
 >;
 
-const codeSchema = z
+const codeOrEmptySchema = z
   .string()
   .trim()
-  .min(1, "Code ist erforderlich.")
   .regex(
     /^[A-Z][A-Z0-9_]*$/,
     "Code darf nur Großbuchstaben, Zahlen und Unterstriche enthalten.",
-  );
+  )
+  .or(z.literal(""));
 
 export const periodizationDimensionInputSchema = z.object({
   name: z.string().trim().min(1, "Name ist erforderlich."),
-  code: codeSchema,
+  code: codeOrEmptySchema,
   description: z.string().trim(),
   sortOrder: z
     .number()
@@ -171,7 +174,7 @@ export type PeriodizationDimensionInput = z.infer<
 export const focusDefinitionInputSchema = z.object({
   dimensionId: z.string().trim().min(1, "Dimension ist erforderlich."),
   name: z.string().trim().min(1, "Fokus ist erforderlich."),
-  code: codeSchema,
+  code: codeOrEmptySchema,
   description: z.string().trim(),
   active: z.boolean(),
 });
@@ -180,7 +183,7 @@ export type FocusDefinitionInput = z.infer<typeof focusDefinitionInputSchema>;
 
 export const focusSegmentInputSchema = z
   .object({
-    dimensionId: z.string().trim().min(1, "Dimension ist erforderlich."),
+    dimensionId: z.string().trim().or(z.literal("")),
     focusDefinitionId: z.string().trim().min(1, "Fokus ist erforderlich."),
     startDate: z.string().regex(isoDate, "Startdatum ist erforderlich."),
     endDate: z.string().regex(isoDate, "Enddatum ist erforderlich."),
@@ -201,13 +204,54 @@ export const trainingDayInputSchema = z.object({
 
 export type TrainingDayInput = z.infer<typeof trainingDayInputSchema>;
 
+export const weekdays = [
+  "Monday",
+  "Tuesday",
+  "Wednesday",
+  "Thursday",
+  "Friday",
+  "Saturday",
+  "Sunday",
+] as const satisfies readonly Weekday[];
+
+export const trainingScheduleTemplateInputSchema = z
+  .object({
+    name: z.string().trim().min(1, "Name ist erforderlich."),
+    weekday: z.enum(weekdays, { message: "Wochentag ist erforderlich." }),
+    startTime: z.string().regex(localTime, "Startzeit ist erforderlich."),
+    endTime: z.string().regex(localTime, "Endzeit ist erforderlich."),
+    location: z.string().trim(),
+    active: z.boolean(),
+    validFrom: z
+      .string()
+      .regex(isoDate, "Gültig-ab-Datum ist ungültig.")
+      .nullish(),
+    validUntil: z
+      .string()
+      .regex(isoDate, "Gültig-bis-Datum ist ungültig.")
+      .nullish(),
+  })
+  .refine(({ startTime, endTime }) => startTime < endTime, {
+    message: "Die Endzeit muss nach der Startzeit liegen.",
+    path: ["endTime"],
+  })
+  .refine(
+    ({ validFrom, validUntil }) =>
+      !validFrom || !validUntil || validFrom <= validUntil,
+    {
+      message: "Gültig-ab muss vor oder am Gültig-bis-Datum liegen.",
+      path: ["validUntil"],
+    },
+  );
+
+export type TrainingScheduleTemplateInput = z.infer<
+  typeof trainingScheduleTemplateInputSchema
+>;
+
 export const trainingSessionInputSchema = z.object({
   trainingDayId: z.string().min(1),
   title: z.string().trim(),
-  startTime: z
-    .string()
-    .regex(/^(?:[01]\d|2[0-3]):[0-5]\d$/)
-    .or(z.literal("")),
+  startTime: z.string().regex(localTime).or(z.literal("")),
   durationMinutes: z.number().int().positive().optional(),
   volumeMeters: z.number().min(0).optional(),
   expectedRpe: z.number().int().min(1).max(10).optional(),
@@ -216,12 +260,13 @@ export const trainingSessionInputSchema = z.object({
   keySession: z.boolean(),
   athleteNote: z.string().trim(),
   equipment: z.string().trim(),
+  status: z.enum(["planned", "cancelled"]).optional(),
 });
 export type TrainingSessionInput = z.infer<typeof trainingSessionInputSchema>;
 
 export const equipmentItemInputSchema = z.object({
   name: z.string().trim().min(1, "Name ist erforderlich."),
-  code: codeSchema,
+  code: codeOrEmptySchema,
   active: z.boolean(),
   sortOrder: z.number().int().min(0, "Reihenfolge muss mindestens 0 sein."),
 });

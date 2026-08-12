@@ -133,6 +133,34 @@ export class InMemoryStorageAdapter implements StorageAdapter {
     return this.listRevisions(GLOBAL_REVISION_SCOPE_ID);
   }
 
+  async purgeSeason(seasonId: Id): Promise<void> {
+    const snapshot = await this.exportAll();
+    const scope = new Set<StorageCollection>();
+    for (const [collection, entities] of Object.entries(snapshot)) {
+      if (collection === "revisions") continue;
+      const bucket = this.data.get(collection as StorageCollection);
+      if (!bucket) continue;
+      for (const entity of entities as StoredEntity[]) {
+        if (
+          importSeasonScope(
+            snapshot,
+            collection as StorageCollection,
+            entity as unknown as Record<string, unknown>,
+          ) === seasonId
+        ) {
+          scope.add(collection as StorageCollection);
+          bucket.delete(entity.id);
+        }
+      }
+    }
+    const revisions = this.data.get("revisions");
+    if (revisions) {
+      for (const [id, revision] of revisions) {
+        if ((revision as Revision).seasonId === seasonId) revisions.delete(id);
+      }
+    }
+  }
+
   async exportAll(): Promise<StorageSnapshot> {
     return Object.fromEntries(
       [...this.data.entries()].map(([collection, entities]) => [

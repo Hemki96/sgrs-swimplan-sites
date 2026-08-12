@@ -6,6 +6,18 @@ export type LocalTime = string;
 export type RequirementLevel = "required" | "recommended" | "optional";
 export type EventPriority = "A" | "B" | "C" | "test";
 export type SeasonStatus = "draft" | "active" | "completed" | "archived";
+export type SessionStatus = "planned" | "cancelled";
+
+export const weekdays = [
+  "Monday",
+  "Tuesday",
+  "Wednesday",
+  "Thursday",
+  "Friday",
+  "Saturday",
+  "Sunday",
+] as const;
+export type Weekday = (typeof weekdays)[number];
 
 export const configurationGroups = [
   "season_status",
@@ -105,7 +117,7 @@ export interface Microcycle extends SoftDeletableEntity {
   name: string;
   startDate: ISODate;
   endDate: ISODate;
-  targetRpe: number;
+  targetRpe?: number;
   targetVolumeMeters?: number;
   goal: string;
 }
@@ -153,6 +165,20 @@ export interface TrainingDay extends SoftDeletableEntity {
   notes?: string;
 }
 
+export interface TrainingScheduleTemplate extends SoftDeletableEntity {
+  seasonId: Id;
+  name: string;
+  weekday: Weekday;
+  startTime: LocalTime;
+  endTime: LocalTime;
+  location?: string;
+  active: boolean;
+  validFrom?: ISODate | null;
+  validUntil?: ISODate | null;
+  createdAt: ISODateTime;
+  updatedAt: ISODateTime;
+}
+
 export interface TrainingSession extends SoftDeletableEntity {
   trainingDayId: Id;
   title?: string;
@@ -165,6 +191,10 @@ export interface TrainingSession extends SoftDeletableEntity {
   keySession: boolean;
   athleteNote?: string;
   equipment?: string;
+  scheduleTemplateId?: Id;
+  generatedFromSchedule?: boolean;
+  scheduleDetached?: boolean;
+  status?: SessionStatus;
 }
 
 export interface EquipmentItem extends SoftDeletableEntity {

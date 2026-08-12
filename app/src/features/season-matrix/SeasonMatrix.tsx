@@ -491,7 +491,7 @@ export function buildSeasonMatrixRows(props: SeasonMatrixProps): MatrixRow[] {
     kind: "rpe",
     blocks: props.microcycles.map((cycle) => ({
       id: cycle.id,
-      label: String(cycle.targetRpe),
+      label: cycle.targetRpe?.toString() ?? "–",
       detail: cycle.name,
       startDate: cycle.startDate,
       endDate: cycle.endDate,
@@ -561,8 +561,8 @@ function entityForBlock(
   }
 }
 
-function rpeBand(rpe: number): string {
-  if (rpe <= 3) return "easy";
+function rpeBand(rpe: number | undefined): string {
+  if (rpe === undefined || rpe <= 3) return "easy";
   if (rpe <= 6) return "steady";
   if (rpe <= 8) return "hard";
   return "max";

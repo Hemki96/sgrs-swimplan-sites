@@ -13,6 +13,7 @@ import type {
   Season,
   SessionEquipment,
   TrainingDay,
+  TrainingScheduleTemplate,
   TrainingSession,
 } from "./types";
 import type { StorageAdapter } from "../storage/StorageAdapter";
@@ -115,6 +116,7 @@ export interface SeedDemoSeasonResult {
   focusSegments: FocusSegment[];
   trainingDays: TrainingDay[];
   trainingSessions: TrainingSession[];
+  trainingScheduleTemplates: TrainingScheduleTemplate[];
   equipmentItems: EquipmentItem[];
   sessionEquipment: SessionEquipment[];
 }
@@ -576,6 +578,39 @@ export async function seedDemoSeason(
     }),
   ]);
 
+  const trainingScheduleTemplates = await Promise.all([
+    put<TrainingScheduleTemplate>("training_schedule_templates", {
+      id: makeSeedId(1000),
+      seasonId: season.id,
+      name: "Abendtraining",
+      weekday: "Monday",
+      startTime: "18:00",
+      endTime: "20:00",
+      location: "Oktopus Siegburg",
+      active: true,
+      validFrom: null,
+      validUntil: null,
+      createdAt: timestamp,
+      updatedAt: timestamp,
+      version: 0,
+    }),
+    put<TrainingScheduleTemplate>("training_schedule_templates", {
+      id: makeSeedId(1001),
+      seasonId: season.id,
+      name: "Abendtraining",
+      weekday: "Wednesday",
+      startTime: "19:00",
+      endTime: "20:45",
+      location: "Oktopus Siegburg",
+      active: true,
+      validFrom: null,
+      validUntil: null,
+      createdAt: timestamp,
+      updatedAt: timestamp,
+      version: 0,
+    }),
+  ]);
+
   return {
     season,
     eventTracks,
@@ -590,6 +625,7 @@ export async function seedDemoSeason(
     focusSegments,
     trainingDays,
     trainingSessions,
+    trainingScheduleTemplates,
     equipmentItems,
     sessionEquipment,
   };

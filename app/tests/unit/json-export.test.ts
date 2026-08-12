@@ -20,6 +20,7 @@ const externalKeys = [
   "focusSegments",
   "trainingDays",
   "trainingSessions",
+  "trainingScheduleTemplates",
   "equipmentItems",
   "sessionEquipment",
   "revisions",

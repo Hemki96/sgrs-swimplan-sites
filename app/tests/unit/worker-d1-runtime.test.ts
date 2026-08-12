@@ -118,4 +118,102 @@ describe("Worker storage on the provisioned D1 runtime (DB binding)", () => {
       await rm(dir, { recursive: true, force: true });
     }
   });
+
+  it("purges a season and all rows sharing its season_id", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "sgrs-swimplan-d1-purge-"));
+    try {
+      await withD1(dir, async (db) => {
+        const created = await putSeason(db, season, 0);
+        expect(created.status).toBe(200);
+
+        const macrocycle = {
+          id: "runtime-macro",
+          seasonId: season.id,
+          name: "Base",
+          startDate: "2026-08-01",
+          endDate: "2027-01-31",
+          goal: "Grundlage",
+          notes: "",
+          version: 0,
+        };
+        const macroResponse = await storageRequest(
+          new Request(
+            "http://site.test/api/storage/macrocycles/runtime-macro",
+            {
+              method: "PUT",
+              headers: { "content-type": "application/json" },
+              body: JSON.stringify({
+                entity: macrocycle,
+                options: {
+                  expectedVersion: 0,
+                  revision: { seasonId: season.id },
+                },
+              }),
+            },
+          ),
+          { DB: db },
+        );
+        expect(macroResponse.status).toBe(200);
+
+        const revisionsBefore = await storageRequest(
+          new Request(
+            "http://site.test/api/storage/revisions?seasonId=runtime-season",
+          ),
+          { DB: db },
+        );
+        expect((await revisionsBefore.json()).length).toBeGreaterThan(0);
+
+        const purge = await storageRequest(
+          new Request(
+            "http://site.test/api/storage/seasons/runtime-season/purge",
+            { method: "DELETE" },
+          ),
+          { DB: db },
+        );
+        expect(purge.status).toBe(204);
+
+        const readSeason = await storageRequest(
+          new Request("http://site.test/api/storage/seasons/runtime-season"),
+          { DB: db },
+        );
+        expect(readSeason.status).toBe(200);
+        expect(await readSeason.json()).toBeNull();
+
+        const readMacro = await storageRequest(
+          new Request("http://site.test/api/storage/macrocycles/runtime-macro"),
+          { DB: db },
+        );
+        expect(readMacro.status).toBe(200);
+        expect(await readMacro.json()).toBeNull();
+
+        const revisionsAfter = await storageRequest(
+          new Request(
+            "http://site.test/api/storage/revisions?seasonId=runtime-season",
+          ),
+          { DB: db },
+        );
+        expect(await revisionsAfter.json()).toEqual([]);
+      });
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("returns 404 when purging a season that does not exist", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "sgrs-swimplan-d1-purge-404-"));
+    try {
+      await withD1(dir, async (db) => {
+        const purge = await storageRequest(
+          new Request(
+            "http://site.test/api/storage/seasons/missing-season/purge",
+            { method: "DELETE" },
+          ),
+          { DB: db },
+        );
+        expect(purge.status).toBe(404);
+      });
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
 });

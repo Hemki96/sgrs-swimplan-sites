@@ -75,4 +75,13 @@ export class SeasonService {
       },
     );
   }
+
+  purge(season: Season): Promise<void> {
+    if (!season.deletedAt) {
+      return Promise.reject(
+        new Error("Season must be soft deleted before it can be purged"),
+      );
+    }
+    return this.storage.purgeSeason(season.id);
+  }
 }

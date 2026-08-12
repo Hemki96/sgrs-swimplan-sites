@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from "react";
 
 import type {
+  CalendarConstraint,
   Event,
   FocusDefinition,
   Mesocycle,
@@ -26,6 +27,7 @@ export function TodayView({
   microcycles,
   mesocycles,
   events,
+  constraints,
   focusDefinitions,
   days,
   sessions,
@@ -36,6 +38,7 @@ export function TodayView({
   microcycles: Microcycle[];
   mesocycles: Mesocycle[];
   events: Event[];
+  constraints: CalendarConstraint[];
   focusDefinitions: FocusDefinition[];
   days: TrainingDay[];
   sessions: TrainingSession[];
@@ -50,6 +53,13 @@ export function TodayView({
     focusDefinitions,
     events,
   });
+  const constraintWarning = (date: string): string | null => {
+    const match = constraints.find(
+      (item) => item.startDate <= date && item.endDate >= date,
+    );
+    if (!match) return null;
+    return "Dieser Trainingstermin liegt innerhalb einer Kalenderrestriktion.";
+  };
   const [dayDate, setDayDate] = useState<string | null>(null);
   const [dayContext, setDayContext] = useState("");
   const [editor, setEditor] = useState<{
@@ -128,6 +138,11 @@ export function TodayView({
                 key={session.id}
                 session={session}
                 focusDefinitions={focusDefinitions}
+                warning={
+                  session.generatedFromSchedule
+                    ? constraintWarning(data.today)
+                    : null
+                }
                 onClick={() => setEditor({ date: data.today, session })}
               />
             ))}

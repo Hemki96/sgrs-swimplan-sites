@@ -78,7 +78,7 @@ describe("seedDemoSeason", () => {
     expect(result.trainingDays).toHaveLength(4);
     expect(result.trainingSessions).toHaveLength(5);
     expect(result.sessionEquipment).toHaveLength(3);
-    expect(await storage.listRevisions(DEMO_SEASON_ID)).toHaveLength(87);
+    expect(await storage.listRevisions(DEMO_SEASON_ID)).toHaveLength(89);
     expect(
       (await storage.listRevisions(DEMO_SEASON_ID)).every(
         (revision) => revision.operation === "create",
@@ -142,7 +142,7 @@ describe("seedDemoSeason", () => {
     await expect(reloaded.list("training_days")).resolves.toHaveLength(4);
     await expect(reloaded.list("training_sessions")).resolves.toHaveLength(5);
     await expect(reloaded.listRevisions(DEMO_SEASON_ID)).resolves.toHaveLength(
-      87,
+      89,
     );
   });
 
@@ -156,6 +156,6 @@ describe("seedDemoSeason", () => {
     expect(second.season.id).not.toBe(first.season.id);
     expect(second.events[0].id).not.toBe(first.events[0].id);
     expect(await storage.list("seasons")).toHaveLength(2);
-    expect(await storage.listRevisions(second.season.id)).toHaveLength(87);
+    expect(await storage.listRevisions(second.season.id)).toHaveLength(89);
   });
 });

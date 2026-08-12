@@ -573,4 +573,112 @@ describe("SeasonPlanningService", () => {
       }),
     ).rejects.toThrow("Mikrozyklus wurde nicht gefunden.");
   });
+
+  it("defaults event endDate to startDate when omitted", async () => {
+    const track = await service.createTrack(season.id, {
+      name: "WK",
+      sortOrder: 0,
+      visible: true,
+    });
+    const created = await service.createEvent(season.id, {
+      trackId: track.id,
+      name: "Eintägiger Wettkampf",
+      startDate: "2027-07-10",
+      endDate: "",
+      priority: "A",
+      category: "",
+      location: "",
+      goal: "",
+      notes: "",
+    });
+    expect(created.endDate).toBe("2027-07-10");
+    expect(created.startDate).toBe(created.endDate);
+  });
+
+  it("allows creating a microcycle without target RPE", async () => {
+    const macrocycle = await service.createMacrocycle(season.id, {
+      name: "Aufbau",
+      startDate: "2026-08-01",
+      endDate: "2027-01-31",
+      goal: "",
+      notes: "",
+    });
+    const mesocycle = await service.createMesocycle({
+      macrocycleId: macrocycle.id,
+      name: "Aerobe Basis",
+      startDate: "2026-08-01",
+      endDate: "2026-09-30",
+      goal: "",
+      notes: "",
+    });
+    const created = await service.createMicrocycle({
+      mesocycleId: mesocycle.id,
+      name: "KW 32",
+      startDate: "2026-08-03",
+      endDate: "2026-08-09",
+      goal: "",
+    });
+    expect(created.targetRpe).toBeUndefined();
+  });
+
+  it("generates a code from the name when code is empty", async () => {
+    const dimension = await service.createDimension(season.id, {
+      name: "Aerobic Base",
+      code: "",
+      description: "",
+      sortOrder: 0,
+      active: true,
+    });
+    expect(dimension.code).toBe("AEROBIC_BASE");
+  });
+
+  it("derives the focus segment dimension from the selected focus", async () => {
+    await service.initializeStandardPeriodization(season.id);
+    const dimensions = await service.listDimensions(season.id);
+    const aerobic = dimensions.find((item) => item.code === "AEROBIC");
+    expect(aerobic).toBeDefined();
+    const defs = await service.listFocusDefinitions(season.id);
+    const base = defs.find((item) => item.name === "Aerobic Base");
+    expect(base).toBeDefined();
+    const segment = await service.createFocusSegment(season.id, {
+      dimensionId: "",
+      focusDefinitionId: base!.id,
+      startDate: "2026-09-01",
+      endDate: "2026-10-31",
+      notes: "",
+    });
+    expect(segment.dimensionId).toBe(aerobic!.id);
+  });
+
+  it("seeds a default event track on first periodization init", async () => {
+    await service.initializeStandardPeriodization(season.id);
+    const tracks = await service.listTracks(season.id);
+    expect(tracks.some((track) => track.name === "Standard")).toBe(true);
+  });
+
+  it("generates one microcycle per ISO week within a mesocycle", async () => {
+    const macrocycle = await service.createMacrocycle(season.id, {
+      name: "Aufbau",
+      startDate: "2026-08-03",
+      endDate: "2026-08-16",
+      goal: "",
+      notes: "",
+    });
+    const mesocycle = await service.createMesocycle({
+      macrocycleId: macrocycle.id,
+      name: "Aerobe Basis",
+      startDate: "2026-08-03",
+      endDate: "2026-08-16",
+      goal: "",
+      notes: "",
+    });
+    const created = await service.generateWeeklyMicrocycles(mesocycle.id);
+    expect(created).toBe(2);
+    const microcycles = await service.listMicrocycles(season.id);
+    expect(microcycles).toHaveLength(2);
+    expect(microcycles[0].name).toBe("KW 32");
+    expect(microcycles[1].name).toBe("KW 33");
+    const repeat = await service.generateWeeklyMicrocycles(mesocycle.id);
+    expect(repeat).toBe(0);
+  });
 });

@@ -146,6 +146,23 @@
 - `notes`
 - `version`
 
+## TrainingScheduleTemplate
+
+- `id`
+- `seasonId`
+- `name`
+- `weekday`
+- `startTime`
+- `endTime`
+- `location` optional
+- `active`
+- `validFrom` optional
+- `validUntil` optional
+- `version`
+- `createdAt`
+- `updatedAt`
+- `deletedAt` optional
+
 ## TrainingSession
 
 - `id`
@@ -159,6 +176,10 @@
 - `technicalFocusId`
 - `keySession`
 - `athleteNote`
+- `scheduleTemplateId` optional
+- `generatedFromSchedule` optional
+- `scheduleDetached` optional
+- `status` optional (`planned` | `cancelled`)
 - `version`
 - `deletedAt`
 

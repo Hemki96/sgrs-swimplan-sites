@@ -13,9 +13,12 @@ import type {
   Season,
   SessionEquipment,
   TrainingDay,
+  TrainingScheduleTemplate,
   TrainingSession,
+  Weekday,
 } from "./types";
 import type { StorageAdapter } from "../storage/StorageAdapter";
+import { addDays, buildWeeks, formatIsoDate, type IsoWeek } from "./isoWeek";
 import {
   calendarConstraintInputSchema,
   eventInputSchema,
@@ -29,6 +32,7 @@ import {
   microcycleSegmentInputSchema,
   periodizationDimensionInputSchema,
   trainingDayInputSchema,
+  trainingScheduleTemplateInputSchema,
   trainingSessionInputSchema,
   type CalendarConstraintInput,
   type EventInput,
@@ -42,6 +46,7 @@ import {
   type MicrocycleSegmentInput,
   type PeriodizationDimensionInput,
   type TrainingDayInput,
+  type TrainingScheduleTemplateInput,
   type TrainingSessionInput,
 } from "../validation/domain";
 
@@ -67,6 +72,7 @@ const standardFocuses = {
 
 export interface SeasonPlanningDependencies {
   createId?: () => string;
+  now?: () => string;
 }
 
 export class PlanningValidationError extends Error {
@@ -78,6 +84,7 @@ export class PlanningValidationError extends Error {
 
 export class SeasonPlanningService {
   private readonly createId: () => string;
+  private readonly now: () => string;
   private readonly periodizationInitializations = new Map<
     string,
     Promise<void>
@@ -88,6 +95,7 @@ export class SeasonPlanningService {
     dependencies: SeasonPlanningDependencies = {},
   ) {
     this.createId = dependencies.createId ?? (() => crypto.randomUUID());
+    this.now = dependencies.now ?? (() => new Date().toISOString());
   }
 
   async listTracks(seasonId: string): Promise<EventTrack[]> {
@@ -147,14 +155,15 @@ export class SeasonPlanningService {
   async createEvent(seasonId: string, input: EventInput): Promise<Event> {
     const season = await this.requireSeason(seasonId);
     const values = eventInputSchema.parse(input);
-    await this.requireTrack(seasonId, values.trackId);
-    this.assertWithinSeason(season, values.startDate, values.endDate);
+    const normed = this.normalizeEvent(values);
+    await this.requireTrack(seasonId, normed.trackId);
+    this.assertWithinSeason(season, normed.startDate, normed.endDate);
     return this.storage.put(
       "events",
       {
         id: this.createId(),
         seasonId,
-        ...this.eventValues(values),
+        ...this.eventValues(normed),
         version: 0,
       },
       { expectedVersion: 0, revision: this.revision(seasonId) },
@@ -164,11 +173,12 @@ export class SeasonPlanningService {
   async updateEvent(event: Event, input: EventInput): Promise<Event> {
     const season = await this.requireSeason(event.seasonId);
     const values = eventInputSchema.parse(input);
-    await this.requireTrack(event.seasonId, values.trackId);
-    this.assertWithinSeason(season, values.startDate, values.endDate);
+    const normed = this.normalizeEvent(values);
+    await this.requireTrack(event.seasonId, normed.trackId);
+    this.assertWithinSeason(season, normed.startDate, normed.endDate);
     return this.storage.put(
       "events",
-      { ...event, ...this.eventValues(values) },
+      { ...event, ...this.eventValues(normed) },
       {
         expectedVersion: event.version,
         revision: this.revision(event.seasonId),
@@ -523,6 +533,31 @@ export class SeasonPlanningService {
     });
   }
 
+  async generateWeeklyMicrocycles(mesocycleId: string): Promise<number> {
+    const mesocycle = await this.requireMesocycle(mesocycleId);
+    const macrocycle = await this.requireMacrocycle(mesocycle.macrocycleId);
+    const existing = await this.listMicrocycles(macrocycle.seasonId);
+    const taken = new Set(
+      existing
+        .filter((item) => item.mesocycleId === mesocycleId)
+        .map((item) => item.startDate),
+    );
+    const weeks = buildWeeks(mesocycle.startDate, mesocycle.endDate);
+    let created = 0;
+    for (const week of weeks) {
+      if (taken.has(week.startDate)) continue;
+      await this.createMicrocycle({
+        mesocycleId,
+        name: `KW ${String(week.isoWeek).padStart(2, "0")}`,
+        startDate: week.startDate,
+        endDate: week.endDate,
+        goal: "",
+      });
+      created++;
+    }
+    return created;
+  }
+
   async initializeStandardPeriodization(seasonId: string): Promise<void> {
     const running = this.periodizationInitializations.get(seasonId);
     if (running) return running;
@@ -539,6 +574,14 @@ export class SeasonPlanningService {
   private async createStandardPeriodization(seasonId: string): Promise<void> {
     await this.requireSeason(seasonId);
     if ((await this.listDimensions(seasonId)).length > 0) return;
+
+    if ((await this.listTracks(seasonId)).length === 0) {
+      await this.createTrack(seasonId, {
+        name: "Standard",
+        sortOrder: 0,
+        visible: true,
+      });
+    }
 
     const dimensions = new Map<string, PeriodizationDimension>();
     for (const [sortOrder, name] of standardDimensions.entries()) {
@@ -586,10 +629,11 @@ export class SeasonPlanningService {
   ): Promise<PeriodizationDimension> {
     await this.requireSeason(seasonId);
     const values = periodizationDimensionInputSchema.parse(input);
-    await this.assertUniqueDimensionCode(seasonId, values.code);
+    const code = this.withGeneratedCode(values.name, values.code);
+    await this.assertUniqueDimensionCode(seasonId, code);
     return this.storage.put(
       "periodization_dimensions",
-      { id: this.createId(), seasonId, ...values, version: 0 },
+      { id: this.createId(), seasonId, ...values, code, version: 0 },
       { expectedVersion: 0, revision: this.revision(seasonId) },
     );
   }
@@ -600,14 +644,15 @@ export class SeasonPlanningService {
   ): Promise<PeriodizationDimension> {
     const values = periodizationDimensionInputSchema.parse(input);
     await this.requireSeason(dimension.seasonId);
+    const code = this.withGeneratedCode(values.name, values.code);
     await this.assertUniqueDimensionCode(
       dimension.seasonId,
-      values.code,
+      code,
       dimension.id,
     );
     return this.storage.put(
       "periodization_dimensions",
-      { ...dimension, ...values },
+      { ...dimension, ...values, code },
       {
         expectedVersion: dimension.version,
         revision: this.revision(dimension.seasonId),
@@ -647,10 +692,11 @@ export class SeasonPlanningService {
     await this.requireSeason(seasonId);
     const values = focusDefinitionInputSchema.parse(input);
     await this.requireDimension(seasonId, values.dimensionId);
-    await this.assertUniqueFocusCode(seasonId, values.dimensionId, values.code);
+    const code = this.withGeneratedCode(values.name, values.code);
+    await this.assertUniqueFocusCode(seasonId, values.dimensionId, code);
     return this.storage.put(
       "focus_definitions",
-      { id: this.createId(), seasonId, ...values, version: 0 },
+      { id: this.createId(), seasonId, ...values, code, version: 0 },
       { expectedVersion: 0, revision: this.revision(seasonId) },
     );
   }
@@ -669,15 +715,16 @@ export class SeasonPlanningService {
         );
       }
     }
+    const code = this.withGeneratedCode(values.name, values.code);
     await this.assertUniqueFocusCode(
       definition.seasonId,
       values.dimensionId,
-      values.code,
+      code,
       definition.id,
     );
     return this.storage.put(
       "focus_definitions",
-      { ...definition, ...values },
+      { ...definition, ...values, code },
       {
         expectedVersion: definition.version,
         revision: this.revision(definition.seasonId),
@@ -710,15 +757,21 @@ export class SeasonPlanningService {
   ): Promise<FocusSegment> {
     const season = await this.requireSeason(seasonId);
     const values = focusSegmentInputSchema.parse(input);
-    await this.requireFocusSelection(
+    const dimensionId = await this.resolveFocusDimension(
       seasonId,
       values.dimensionId,
       values.focusDefinitionId,
     );
-    this.assertWithinSeason(season, values.startDate, values.endDate);
+    const normed = { ...values, dimensionId };
+    await this.requireFocusSelection(
+      seasonId,
+      dimensionId,
+      normed.focusDefinitionId,
+    );
+    this.assertWithinSeason(season, normed.startDate, normed.endDate);
     return this.storage.put(
       "focus_segments",
-      { id: this.createId(), seasonId, ...values, version: 0 },
+      { id: this.createId(), seasonId, ...normed, version: 0 },
       { expectedVersion: 0, revision: this.revision(seasonId) },
     );
   }
@@ -729,15 +782,21 @@ export class SeasonPlanningService {
   ): Promise<FocusSegment> {
     const season = await this.requireSeason(segment.seasonId);
     const values = focusSegmentInputSchema.parse(input);
-    await this.requireFocusSelection(
+    const dimensionId = await this.resolveFocusDimension(
       segment.seasonId,
       values.dimensionId,
       values.focusDefinitionId,
     );
-    this.assertWithinSeason(season, values.startDate, values.endDate);
+    const normed = { ...values, dimensionId };
+    await this.requireFocusSelection(
+      segment.seasonId,
+      dimensionId,
+      normed.focusDefinitionId,
+    );
+    this.assertWithinSeason(season, normed.startDate, normed.endDate);
     return this.storage.put(
       "focus_segments",
-      { ...segment, ...values },
+      { ...segment, ...normed },
       {
         expectedVersion: segment.version,
         revision: this.revision(segment.seasonId),
@@ -818,6 +877,25 @@ export class SeasonPlanningService {
       throw new PlanningValidationError(
         "Trainingstag gehört nicht zur Saison.",
       );
+    const template = current?.scheduleTemplateId
+      ? await this.storage.get<TrainingScheduleTemplate>(
+          "training_schedule_templates",
+          current.scheduleTemplateId,
+        )
+      : null;
+    let detached = current?.scheduleDetached ?? false;
+    if (current?.generatedFromSchedule && template && !detached) {
+      const defaultDuration = this.durationBetween(
+        template.startTime,
+        template.endTime,
+      );
+      const timeChanged =
+        (values.startTime || undefined) !== template.startTime;
+      const durationChanged =
+        values.durationMinutes !== undefined &&
+        values.durationMinutes !== defaultDuration;
+      if (timeChanged || durationChanged) detached = true;
+    }
     return this.storage.put(
       "training_sessions",
       {
@@ -833,6 +911,10 @@ export class SeasonPlanningService {
         keySession: values.keySession,
         athleteNote: values.athleteNote || undefined,
         equipment: values.equipment || undefined,
+        scheduleTemplateId: current?.scheduleTemplateId,
+        generatedFromSchedule: current?.generatedFromSchedule ?? false,
+        scheduleDetached: detached,
+        status: values.status,
       },
       {
         expectedVersion: current?.version ?? 0,
@@ -849,6 +931,197 @@ export class SeasonPlanningService {
       expectedVersion: session.version,
       revision: this.revision(seasonId),
     });
+  }
+
+  async listScheduleTemplates(
+    seasonId: string,
+  ): Promise<TrainingScheduleTemplate[]> {
+    return (
+      await this.storage.list<TrainingScheduleTemplate>(
+        "training_schedule_templates",
+      )
+    )
+      .filter((template) => template.seasonId === seasonId)
+      .sort(
+        (left, right) =>
+          weekdayOffset(left.weekday) - weekdayOffset(right.weekday) ||
+          left.startTime.localeCompare(right.startTime),
+      );
+  }
+
+  async createScheduleTemplate(
+    seasonId: string,
+    input: TrainingScheduleTemplateInput,
+  ): Promise<TrainingScheduleTemplate> {
+    await this.requireSeason(seasonId);
+    const values = trainingScheduleTemplateInputSchema.parse(input);
+    const timestamp = this.now();
+    return this.storage.put(
+      "training_schedule_templates",
+      {
+        id: this.createId(),
+        seasonId,
+        name: values.name,
+        weekday: values.weekday,
+        startTime: values.startTime,
+        endTime: values.endTime,
+        location: values.location || undefined,
+        active: values.active,
+        validFrom: values.validFrom ?? null,
+        validUntil: values.validUntil ?? null,
+        createdAt: timestamp,
+        updatedAt: timestamp,
+        version: 0,
+      },
+      { expectedVersion: 0, revision: this.revision(seasonId) },
+    );
+  }
+
+  async updateScheduleTemplate(
+    template: TrainingScheduleTemplate,
+    input: TrainingScheduleTemplateInput,
+  ): Promise<TrainingScheduleTemplate> {
+    await this.requireSeason(template.seasonId);
+    const values = trainingScheduleTemplateInputSchema.parse(input);
+    return this.storage.put(
+      "training_schedule_templates",
+      {
+        ...template,
+        name: values.name,
+        weekday: values.weekday,
+        startTime: values.startTime,
+        endTime: values.endTime,
+        location: values.location || undefined,
+        active: values.active,
+        validFrom: values.validFrom ?? null,
+        validUntil: values.validUntil ?? null,
+      },
+      {
+        expectedVersion: template.version,
+        revision: this.revision(template.seasonId),
+      },
+    );
+  }
+
+  deleteScheduleTemplate(template: TrainingScheduleTemplate): Promise<void> {
+    return this.storage.softDelete("training_schedule_templates", template.id, {
+      expectedVersion: template.version,
+      revision: this.revision(template.seasonId),
+    });
+  }
+
+  /**
+   * Erzeugt fehlende Sessions aus aktiven Templates (idempotent) und gleicht
+   * Template-Änderungen mit noch nicht individuell veränderten zukünftigen
+   * Sessions ab. `now` dient als Stichtag für „vergangene“ Sessions.
+   */
+  async refreshScheduleSessions(
+    seasonId: string,
+    now: string = this.now(),
+  ): Promise<void> {
+    const season = await this.requireSeason(seasonId);
+    const templates = (await this.listScheduleTemplates(seasonId)).filter(
+      (template) => template.active,
+    );
+    const [days, sessions] = await Promise.all([
+      this.storage.list<TrainingDay>("training_days"),
+      this.storage.list<TrainingSession>("training_sessions"),
+    ]);
+    const seasonDays = days.filter((day) => day.seasonId === seasonId);
+    const dayByDate = new Map(seasonDays.map((day) => [day.date, day]));
+    const dateByDayId = new Map(seasonDays.map((day) => [day.id, day.date]));
+
+    for (const template of templates) {
+      const from =
+        template.validFrom && template.validFrom > season.startDate
+          ? template.validFrom
+          : season.startDate;
+      const until =
+        template.validUntil && template.validUntil < season.endDate
+          ? template.validUntil
+          : season.endDate;
+      if (from > until) continue;
+
+      for (const week of buildWeeks(from, until)) {
+        const date = this.dateInWeek(week, template.weekday);
+        if (!date) continue;
+        const day = dayByDate.get(date);
+        if (
+          day &&
+          sessions.some(
+            (session) =>
+              session.trainingDayId === day.id &&
+              session.scheduleTemplateId === template.id,
+          )
+        ) {
+          continue;
+        }
+        const target =
+          day ??
+          (await this.createTrainingDay(seasonId, {
+            date,
+            dayContext: "",
+            notes: "",
+          }));
+        dayByDate.set(date, target);
+        await this.storage.put(
+          "training_sessions",
+          {
+            id: this.createId(),
+            trainingDayId: target.id,
+            title: template.name,
+            startTime: template.startTime,
+            durationMinutes: this.durationBetween(
+              template.startTime,
+              template.endTime,
+            ),
+            keySession: false,
+            generatedFromSchedule: true,
+            scheduleDetached: false,
+            scheduleTemplateId: template.id,
+            version: 0,
+          },
+          { expectedVersion: 0, revision: this.revision(seasonId) },
+        );
+      }
+    }
+
+    const today = now.slice(0, 10);
+    for (const template of templates) {
+      for (const session of sessions) {
+        if (
+          !session.generatedFromSchedule ||
+          session.scheduleTemplateId !== template.id ||
+          session.scheduleDetached
+        ) {
+          continue;
+        }
+        const date = dateByDayId.get(session.trainingDayId);
+        if (!date || date < today) continue;
+        const durationMinutes = this.durationBetween(
+          template.startTime,
+          template.endTime,
+        );
+        if (
+          session.startTime === template.startTime &&
+          session.durationMinutes === durationMinutes
+        ) {
+          continue;
+        }
+        await this.storage.put(
+          "training_sessions",
+          {
+            ...session,
+            startTime: template.startTime,
+            durationMinutes,
+          },
+          {
+            expectedVersion: session.version,
+            revision: this.revision(seasonId),
+          },
+        );
+      }
+    }
   }
 
   async initializeStandardEquipment(seasonId: string): Promise<void> {
@@ -889,10 +1162,11 @@ export class SeasonPlanningService {
   ): Promise<EquipmentItem> {
     await this.requireSeason(seasonId);
     const values = equipmentItemInputSchema.parse(input);
-    await this.assertUniqueEquipment(seasonId, values.name, values.code);
+    const code = this.withGeneratedCode(values.name, values.code);
+    await this.assertUniqueEquipment(seasonId, values.name, code);
     return this.storage.put(
       "equipment_items",
-      { id: this.createId(), seasonId, ...values, version: 0 },
+      { id: this.createId(), seasonId, ...values, code, version: 0 },
       { expectedVersion: 0, revision: this.revision(seasonId) },
     );
   }
@@ -902,15 +1176,11 @@ export class SeasonPlanningService {
     input: EquipmentItemInput,
   ): Promise<EquipmentItem> {
     const values = equipmentItemInputSchema.parse(input);
-    await this.assertUniqueEquipment(
-      item.seasonId,
-      values.name,
-      values.code,
-      item.id,
-    );
+    const code = this.withGeneratedCode(values.name, values.code);
+    await this.assertUniqueEquipment(item.seasonId, values.name, code, item.id);
     return this.storage.put(
       "equipment_items",
-      { ...item, ...values },
+      { ...item, ...values, code },
       { expectedVersion: item.version, revision: this.revision(item.seasonId) },
     );
   }
@@ -983,6 +1253,24 @@ export class SeasonPlanningService {
         revision: this.revision(seasonId),
       },
     );
+  }
+
+  private async resolveFocusDimension(
+    seasonId: string,
+    dimensionId: string,
+    focusDefinitionId: string,
+  ): Promise<string> {
+    if (dimensionId) return dimensionId;
+    const definition = await this.storage.get<FocusDefinition>(
+      "focus_definitions",
+      focusDefinitionId,
+    );
+    if (!definition || definition.seasonId !== seasonId || !definition.active) {
+      throw new PlanningValidationError(
+        "Der Fokus gehört nicht zur gewählten aktiven Dimension.",
+      );
+    }
+    return definition.dimensionId;
   }
 
   private assertChildrenWithinRange(
@@ -1221,6 +1509,30 @@ export class SeasonPlanningService {
     return values;
   }
 
+  private normalizeEvent(values: EventInput): EventInput {
+    return {
+      ...values,
+      endDate: values.endDate || values.startDate,
+    };
+  }
+
+  private withGeneratedCode(name: string, code: string): string {
+    return code || toCode(name);
+  }
+
+  private dateInWeek(week: IsoWeek, weekday: Weekday): string | null {
+    const target = addDays(week.monday, weekdayOffset(weekday));
+    const value = formatIsoDate(target);
+    if (value < week.startDate || value > week.endDate) return null;
+    return value;
+  }
+
+  private durationBetween(start: string, end: string): number {
+    const [startHour, startMinute] = start.split(":").map(Number);
+    const [endHour, endMinute] = end.split(":").map(Number);
+    return endHour * 60 + endMinute - (startHour * 60 + startMinute);
+  }
+
   private revision(seasonId: string) {
     return { seasonId, editorLabel: "public" };
   }
@@ -1231,4 +1543,18 @@ function toCode(value: string): string {
     .toUpperCase()
     .replace(/[^A-Z0-9]+/g, "_")
     .replace(/^_+|_+$/g, "");
+}
+
+const weekdayOffsets: Record<Weekday, number> = {
+  Monday: 0,
+  Tuesday: 1,
+  Wednesday: 2,
+  Thursday: 3,
+  Friday: 4,
+  Saturday: 5,
+  Sunday: 6,
+};
+
+function weekdayOffset(weekday: Weekday): number {
+  return weekdayOffsets[weekday];
 }

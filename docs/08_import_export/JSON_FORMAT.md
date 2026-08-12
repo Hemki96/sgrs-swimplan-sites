@@ -1,6 +1,6 @@
 # JSON Format
 
-Root enthält `schemaVersion: "1.0"`, `exportedAt`, `configurationValues`, `seasons`, `eventTracks`, `events`, `calendarConstraints`, `macrocycles`, `mesocycles`, `microcycles`, `microcycleSegments`, `periodizationDimensions`, `focusDefinitions`, `focusSegments`, `trainingDays`, `trainingSessions`, `equipmentItems`, `sessionEquipment` und `revisions`.
+Root enthält `schemaVersion: "1.0"`, `exportedAt`, `configurationValues`, `seasons`, `eventTracks`, `events`, `calendarConstraints`, `macrocycles`, `mesocycles`, `microcycles`, `microcycleSegments`, `periodizationDimensions`, `focusDefinitions`, `focusSegments`, `trainingDays`, `trainingSessions`, `trainingScheduleTemplates`, `equipmentItems`, `sessionEquipment` und `revisions`.
 
 Alle Collections werden einschließlich soft-gelöschter Datensätze exportiert. Damit enthält der Gesamtexport die globalen Konfigurationswerte, sämtliche zur vollständigen Rekonstruktion der Saisons benötigten Fachdaten und die Revisionshistorie.
 

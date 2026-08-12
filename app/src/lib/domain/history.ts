@@ -35,6 +35,7 @@ const RESTORABLE_COLLECTIONS = [
   "focus_segments",
   "training_days",
   "training_sessions",
+  "training_schedule_templates",
   "equipment_items",
   "session_equipment",
 ] as const;

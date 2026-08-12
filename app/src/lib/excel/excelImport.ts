@@ -372,7 +372,7 @@ export function buildExcelImportSnapshot(
     name: `KW ${week.kw}`,
     startDate: week.monday,
     endDate: week.sunday,
-    targetRpe: week.rpe ?? 0,
+    targetRpe: week.rpe ?? undefined,
     goal: "",
     version: 0,
   }));

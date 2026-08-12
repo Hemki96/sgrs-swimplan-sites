@@ -9,3 +9,6 @@
 - Main Focus: primärer Belastungsfokus einer Session.
 - Technical Focus: technischer Fokus.
 - Target RPE: geplante Belastung.
+- TrainingScheduleTemplate: wiederkehrender Standardtrainingszeitpunkt.
+- Standardtermin: aus einem Template automatisch erzeugte Session.
+- scheduleDetached: individuell vom Template getrennte Session.

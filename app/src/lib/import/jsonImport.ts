@@ -106,6 +106,7 @@ export function buildImportSnapshot(
     "sessionId",
     "equipmentId",
     "targetEventId",
+    "scheduleTemplateId",
   ];
   const remapped: StorageSnapshot = {};
   for (const [collection, rows] of Object.entries(included)) {
@@ -150,6 +151,7 @@ function collectSeasonEntities(
     "focus_definitions",
     "focus_segments",
     "training_days",
+    "training_schedule_templates",
     "equipment_items",
   ];
   for (const key of direct)
