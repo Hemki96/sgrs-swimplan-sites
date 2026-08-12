@@ -5,6 +5,7 @@ import {
   type StorageCollection,
 } from "../storage/StorageAdapter";
 import { VersionConflictError } from "../storage/InMemoryStorageAdapter";
+import { validateStorageEntity } from "../validation/storage";
 
 export const configurationGroupLabels: Record<ConfigurationGroup, string> = {
   season_status: "Saisonstatus",
@@ -157,16 +158,22 @@ export class ConfigurationService {
   }
 
   async list(includeDeleted = false) {
-    return (
-      await this.storage.list<ConfigurationValue>("configuration_values", {
-        includeDeleted,
+    const rows = await this.storage.list<unknown>("configuration_values", {
+      includeDeleted,
+    });
+    return rows
+      .flatMap((row) => {
+        const result = validateStorageEntity("configuration_values", row);
+        return result.success
+          ? [result.data as unknown as ConfigurationValue]
+          : [];
       })
-    ).sort(
-      (a, b) =>
-        a.group.localeCompare(b.group) ||
-        a.sortOrder - b.sortOrder ||
-        a.label.localeCompare(b.label, "de"),
-    );
+      .sort(
+        (a, b) =>
+          a.group.localeCompare(b.group) ||
+          a.sortOrder - b.sortOrder ||
+          a.label.localeCompare(b.label, "de"),
+      );
   }
 
   save(value: ConfigurationValue) {

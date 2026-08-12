@@ -103,6 +103,26 @@ function parseRow<T>(row: { data: string } | null): T | null {
   return row ? (JSON.parse(row.data) as T) : null;
 }
 
+function parseValidRow(
+  collection: StorageCollection,
+  row: { data: string } | null,
+): Record<string, unknown> | null {
+  const value = parseRow<unknown>(row);
+  if (value === null) return null;
+  const result = validateStorageEntity(collection, value);
+  return result.success ? result.data : null;
+}
+
+function parseValidRows(
+  collection: StorageCollection,
+  rows: Array<{ data: string }>,
+) {
+  return rows.flatMap((row) => {
+    const value = parseValidRow(collection, row);
+    return value ? [value] : [];
+  });
+}
+
 const parentReferences: Partial<
   Record<string, { collection: string; field: string }>
 > = {
@@ -196,7 +216,10 @@ async function databaseSnapshot(db: D1Database): Promise<StorageSnapshot> {
     .all<{ collection: string; data: string }>();
   const snapshot: Record<string, unknown[]> = {};
   for (const row of rows.results ?? []) {
-    (snapshot[row.collection] ??= []).push(JSON.parse(row.data));
+    const collection = row.collection as StorageCollection;
+    if (!collections.has(collection)) continue;
+    const value = parseValidRow(collection, row);
+    if (value) (snapshot[collection] ??= []).push(value);
   }
   return snapshot as StorageSnapshot;
 }
@@ -453,7 +476,10 @@ export async function storageRequest(
     ).all<{ collection: string; data: string }>();
     const snapshot: Record<string, unknown[]> = {};
     for (const row of rows.results ?? []) {
-      (snapshot[row.collection] ??= []).push(JSON.parse(row.data));
+      const name = row.collection as StorageCollection;
+      if (!collections.has(name)) continue;
+      const value = parseValidRow(name, row);
+      if (value) (snapshot[name] ??= []).push(value);
     }
     return json(buildJsonExport(snapshot));
   }
@@ -572,7 +598,7 @@ export async function storageRequest(
     )
       .bind(collection, decodeURIComponent(parts[1]))
       .first<{ data: string }>();
-    return json(parseRow(row));
+    return json(parseValidRow(collection as StorageCollection, row));
   }
   if (request.method === "GET") {
     const includeDeleted = url.searchParams.get("includeDeleted") === "true";
@@ -584,7 +610,9 @@ export async function storageRequest(
     )
       .bind(...(seasonId ? [collection, seasonId] : [collection]))
       .all<{ data: string }>();
-    return json((rows.results ?? []).map((row) => JSON.parse(row.data)));
+    return json(
+      parseValidRows(collection as StorageCollection, rows.results ?? []),
+    );
   }
   if (!parts[1] || collection === "revisions")
     return apiError(400, "INVALID_REQUEST", "Invalid request");
