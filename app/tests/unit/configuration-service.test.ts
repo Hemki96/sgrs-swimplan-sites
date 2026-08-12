@@ -4,6 +4,28 @@ import type { ConfigurationValue, Season } from "../../src/lib/domain/types";
 import { InMemoryStorageAdapter } from "../../src/lib/storage/InMemoryStorageAdapter";
 
 describe("ConfigurationService", () => {
+  it("ignores legacy key/value rows without crashing during default seeding", async () => {
+    const storage = new InMemoryStorageAdapter();
+    await storage.hydrate({
+      configuration_values: [
+        {
+          id: "legacy-calendar-system",
+          version: 1,
+          key: "calendarSystem",
+          value: "ISO-8601",
+        },
+      ],
+    });
+
+    const service = new ConfigurationService(storage);
+    const values = await service.ensureDefaults();
+
+    expect(values.length).toBeGreaterThan(10);
+    expect(
+      values.every((value) => value.group && value.code && value.label),
+    ).toBe(true);
+  });
+
   it("seeds global defaults once and creates global revisions", async () => {
     const storage = new InMemoryStorageAdapter();
     const service = new ConfigurationService(storage);

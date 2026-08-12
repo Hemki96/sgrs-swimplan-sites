@@ -460,6 +460,8 @@ describe("Worker REST import/export", () => {
       id: "track-existing",
       seasonId: "season-existing",
       name: "WK",
+      sortOrder: 0,
+      visible: true,
       version: 2,
     });
     const response = await storageRequest(

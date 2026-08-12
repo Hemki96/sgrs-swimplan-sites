@@ -4,6 +4,7 @@ import "../src/styles/base.css";
 export const metadata = {
   title: "SGRS SwimPlan",
   description: "Gemeinsam editierbare Saisonplanung der SG Rhein-Sieg",
+  icons: { icon: "/brand/sgrs-logo.png" },
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {
