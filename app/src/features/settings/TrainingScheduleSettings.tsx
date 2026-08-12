@@ -37,9 +37,11 @@ const emptyForm: TrainingScheduleTemplateInput = {
 export function TrainingScheduleSettings({
   storage,
   onMessage,
+  initialSeasonId,
 }: {
   storage: StorageAdapter;
   onMessage: (message: string) => void;
+  initialSeasonId?: string;
 }) {
   const seasonService = useMemo(() => new SeasonService(storage), [storage]);
   const planningService = useMemo(
@@ -47,20 +49,32 @@ export function TrainingScheduleSettings({
     [storage],
   );
   const [seasons, setSeasons] = useState<Season[]>([]);
-  const [seasonId, setSeasonId] = useState("");
+  const [seasonId, setSeasonId] = useState(initialSeasonId ?? "");
   const [templates, setTemplates] = useState<TrainingScheduleTemplate[]>([]);
   const [form, setForm] = useState<TrainingScheduleTemplateInput>(emptyForm);
   const [editing, setEditing] = useState<TrainingScheduleTemplate | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
+  const [formOpen, setFormOpen] = useState(false);
+  const [loadError, setLoadError] = useState("");
 
   useEffect(() => {
     let active = true;
-    void seasonService.list().then((rows) => {
-      if (!active) return;
-      setSeasons(rows);
-      setSeasonId((current) => current || rows[0]?.id || "");
-    });
+    void seasonService
+      .list()
+      .then((rows) => {
+        if (!active) return;
+        setSeasons(rows);
+        setSeasonId((current) =>
+          rows.some((season) => season.id === current)
+            ? current
+            : rows[0]?.id || "",
+        );
+        setLoadError("");
+      })
+      .catch(() => {
+        if (active) setLoadError("Saisons konnten nicht geladen werden.");
+      });
     return () => {
       active = false;
     };
@@ -71,9 +85,17 @@ export function TrainingScheduleSettings({
     if (!seasonId) {
       return;
     }
-    void planningService.listScheduleTemplates(seasonId).then((rows) => {
-      if (active) setTemplates(rows);
-    });
+    void planningService
+      .listScheduleTemplates(seasonId)
+      .then((rows) => {
+        if (!active) return;
+        setTemplates(rows);
+        setLoadError("");
+      })
+      .catch(() => {
+        if (active)
+          setLoadError("Trainingszeiten konnten nicht geladen werden.");
+      });
     return () => {
       active = false;
     };
@@ -83,6 +105,7 @@ export function TrainingScheduleSettings({
     setEditing(null);
     setForm(emptyForm);
     setErrors({});
+    setFormOpen(true);
   }
 
   function startEdit(template: TrainingScheduleTemplate) {
@@ -98,6 +121,7 @@ export function TrainingScheduleSettings({
       validUntil: template.validUntil ?? null,
     });
     setErrors({});
+    setFormOpen(true);
   }
 
   async function submit(event: FormEvent) {
@@ -126,6 +150,7 @@ export function TrainingScheduleSettings({
       await planningService.refreshScheduleSessions(seasonId);
       setTemplates(await planningService.listScheduleTemplates(seasonId));
       setEditing(null);
+      setFormOpen(false);
       setForm(emptyForm);
       setErrors({});
     } catch (error) {
@@ -199,6 +224,11 @@ export function TrainingScheduleSettings({
         Wiederkehrende Trainingszeiten, die automatisch in jeder passenden
         Trainingswoche als Standardtermin erscheinen.
       </p>
+      {loadError && (
+        <p className="field-error form-error" role="alert">
+          {loadError}
+        </p>
+      )}
       <label className="field settings-group">
         <span>Saison</span>
         <select
@@ -216,7 +246,7 @@ export function TrainingScheduleSettings({
         </select>
       </label>
 
-      {(editing || errors.form) && (
+      {formOpen && (
         <form className="entity-form" onSubmit={submit} noValidate>
           <Field label="Name" error={errors.name}>
             <input
@@ -310,19 +340,18 @@ export function TrainingScheduleSettings({
             <button className="button primary" type="submit" disabled={busy}>
               {editing ? "Standardtermin speichern" : "Standardtermin anlegen"}
             </button>
-            {editing && (
-              <button
-                className="button quiet"
-                type="button"
-                onClick={() => {
-                  setEditing(null);
-                  setForm(emptyForm);
-                  setErrors({});
-                }}
-              >
-                Abbrechen
-              </button>
-            )}
+            <button
+              className="button quiet"
+              type="button"
+              onClick={() => {
+                setEditing(null);
+                setFormOpen(false);
+                setForm(emptyForm);
+                setErrors({});
+              }}
+            >
+              Abbrechen
+            </button>
           </div>
         </form>
       )}

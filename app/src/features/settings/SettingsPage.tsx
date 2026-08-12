@@ -46,9 +46,11 @@ const emptyValue = (group: ConfigurationGroup): ConfigurationValue => ({
 export function SettingsPage({
   storage,
   close,
+  initialSeasonId,
 }: {
   storage: StorageAdapter;
   close: () => void;
+  initialSeasonId?: string;
 }) {
   const service = useMemo(() => new ConfigurationService(storage), [storage]);
   const seasonService = useMemo(() => new SeasonService(storage), [storage]);
@@ -521,7 +523,11 @@ export function SettingsPage({
         )}
       </section>
 
-      <TrainingScheduleSettings storage={storage} onMessage={setMessage} />
+      <TrainingScheduleSettings
+        storage={storage}
+        onMessage={setMessage}
+        initialSeasonId={initialSeasonId}
+      />
 
       <section className="settings-panel" aria-labelledby="purge-title">
         <p className="eyebrow">Datenbereinigung</p>

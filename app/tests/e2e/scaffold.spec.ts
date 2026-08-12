@@ -14,6 +14,7 @@ const seasonNames = {
   lean: `Lean-Saison ${runId}`,
   week: `Wochen-Saison ${runId}`,
   session: `Session-Saison ${runId}`,
+  schedule: `Trainingszeiten-Saison ${runId}`,
 };
 
 async function createSeasonWithOnlyMandatory(
@@ -259,6 +260,57 @@ test("shows date range validation", async ({ page }) => {
   await expect(
     page.getByText("Das Startdatum muss vor oder am Enddatum liegen."),
   ).toBeVisible();
+});
+
+test("creates a recurring Monday training from 18 to 20", async ({ page }) => {
+  await createSeason(page, seasonNames.schedule);
+  await page.getByRole("button", { name: "Einstellungen" }).click();
+  const schedules = page.getByRole("region", { name: "Trainingszeiten" });
+
+  await expect(
+    schedules.getByLabel("Saison").locator("option:checked"),
+  ).toHaveText(seasonNames.schedule);
+  await schedules.getByRole("button", { name: "Termin hinzufügen" }).click();
+  await expect(schedules.getByLabel("Wochentag")).toBeVisible();
+  await schedules.getByLabel("Name").fill(`Montagstraining ${runId}`);
+  await schedules.getByLabel("Wochentag").selectOption("Monday");
+  await schedules.getByLabel("Startzeit").fill("18:00");
+  await schedules.getByLabel("Endzeit").fill("20:00");
+  await schedules
+    .getByRole("button", { name: "Standardtermin anlegen" })
+    .click();
+
+  await expect(page.getByText("Standardtermin wurde angelegt.")).toBeVisible();
+  await expect(
+    schedules
+      .getByRole("article")
+      .filter({ hasText: `Montagstraining ${runId}` }),
+  ).toContainText("Montag · 18:00–20:00 Uhr");
+
+  const templates = (await (
+    await page.request.get("/api/storage/training_schedule_templates")
+  ).json()) as Array<{ id: string; seasonId: string; name: string }>;
+  const template = templates.find(
+    (item) => item.name === `Montagstraining ${runId}`,
+  )!;
+  const sessions = (await (
+    await page.request.get(
+      `/api/storage/training_sessions?seasonId=${template.seasonId}`,
+    )
+  ).json()) as Array<{
+    scheduleTemplateId?: string;
+    startTime?: string;
+    durationMinutes?: number;
+  }>;
+  const generated = sessions.filter(
+    (session) => session.scheduleTemplateId === template.id,
+  );
+  expect(generated.length).toBeGreaterThan(4);
+  expect(generated).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({ startTime: "18:00", durationMinutes: 120 }),
+    ]),
+  );
 });
 
 test("manages parallel focus segments across periodization dimensions", async ({

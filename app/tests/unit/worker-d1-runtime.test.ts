@@ -53,6 +53,74 @@ const putSeason = (db: D1Database, entity: unknown, expectedVersion: number) =>
   );
 
 describe("Worker storage on the provisioned D1 runtime (DB binding)", () => {
+  it("keeps storage available when legacy seasons already have duplicate names", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "sgrs-swimplan-d1-legacy-names-"));
+    try {
+      await withD1(dir, async (db) => {
+        await db
+          .prepare(
+            `CREATE TABLE IF NOT EXISTS storage_entities (
+              collection TEXT NOT NULL, id TEXT NOT NULL, season_id TEXT,
+              version INTEGER, deleted_at TEXT, data TEXT NOT NULL,
+              PRIMARY KEY (collection, id))`,
+          )
+          .run();
+        for (const id of ["legacy-1", "legacy-2"]) {
+          const row = { ...season, id, name: " Legacy Name " };
+          await db
+            .prepare(
+              `INSERT INTO storage_entities
+                (collection, id, season_id, version, deleted_at, data)
+                VALUES ('seasons', ?, ?, 1, NULL, ?)`,
+            )
+            .bind(id, id, JSON.stringify(row))
+            .run();
+        }
+
+        const response = await storageRequest(
+          new Request("http://site.test/api/storage/seasons"),
+          { DB: db },
+        );
+        expect(response.status).toBe(200);
+        await expect(response.json()).resolves.toHaveLength(2);
+
+        const template = await storageRequest(
+          new Request(
+            "http://site.test/api/storage/training_schedule_templates/template-1",
+            {
+              method: "PUT",
+              headers: { "content-type": "application/json" },
+              body: JSON.stringify({
+                entity: {
+                  id: "template-1",
+                  seasonId: "legacy-1",
+                  name: "Montagstraining",
+                  weekday: "Monday",
+                  startTime: "18:00",
+                  endTime: "20:00",
+                  active: true,
+                  validFrom: null,
+                  validUntil: null,
+                  createdAt: "2026-08-09T13:00:00.000Z",
+                  updatedAt: "2026-08-09T13:00:00.000Z",
+                  version: 0,
+                },
+                options: {
+                  expectedVersion: 0,
+                  revision: { seasonId: "legacy-1" },
+                },
+              }),
+            },
+          ),
+          { DB: db },
+        );
+        expect(template.status).toBe(200);
+      });
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
   it("quarantines invalid legacy rows from reads, exports, and write validation", async () => {
     const dir = await mkdtemp(join(tmpdir(), "sgrs-swimplan-d1-legacy-"));
     try {

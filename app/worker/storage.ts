@@ -79,11 +79,21 @@ const createSeasonNameIndexSql = `CREATE UNIQUE INDEX IF NOT EXISTS storage_enti
   WHERE collection = 'seasons'`;
 
 export async function initialize(db: D1Database) {
-  await db.batch([
-    db.prepare(createTableSql),
-    db.prepare(createIndexSql),
-    db.prepare(createSeasonNameIndexSql),
-  ]);
+  await db.batch([db.prepare(createTableSql), db.prepare(createIndexSql)]);
+  try {
+    await db.prepare(createSeasonNameIndexSql).run();
+  } catch (error) {
+    if (!isLegacySeasonNameConflict(error)) throw error;
+  }
+}
+
+function isLegacySeasonNameConflict(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return (
+    message.includes("storage_entities_season_name_idx") &&
+    (message.includes("UNIQUE constraint failed") ||
+      message.includes("SQLITE_CONSTRAINT_UNIQUE"))
+  );
 }
 
 export function json(value: unknown, status = 200) {
@@ -230,12 +240,30 @@ async function validateCandidate(
   entity: StoredEntity,
 ): Promise<SnapshotValidationIssue | null> {
   const snapshot = await databaseSnapshot(db);
+  const existingIssues = new Set(
+    validateStorageSnapshot(snapshot, { allowRevisions: true }).map(
+      validationIssueKey,
+    ),
+  );
   const rows = [...(snapshot[collection] ?? [])].filter(
     (row) => (row as { id?: string }).id !== entity.id,
   );
   rows.push(entity);
   snapshot[collection] = rows;
-  return validateStorageSnapshot(snapshot, { allowRevisions: true })[0] ?? null;
+  return (
+    validateStorageSnapshot(snapshot, { allowRevisions: true }).find(
+      (issue) => !existingIssues.has(validationIssueKey(issue)),
+    ) ?? null
+  );
+}
+
+function validationIssueKey(issue: SnapshotValidationIssue): string {
+  return JSON.stringify([
+    issue.code,
+    issue.collection,
+    issue.entityId ?? null,
+    issue.path ?? null,
+  ]);
 }
 
 async function putEntity(

@@ -192,7 +192,11 @@ export function SeasonManagement({
   if (settingsOpen)
     return (
       <Suspense fallback={<ViewLoading label="Einstellungen" />}>
-        <SettingsPage storage={storage} close={closeSettings} />
+        <SettingsPage
+          storage={storage}
+          close={closeSettings}
+          initialSeasonId={selectedId ?? undefined}
+        />
       </Suspense>
     );
   function openCreate() {
